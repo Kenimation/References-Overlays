@@ -1,0 +1,16 @@
+schema_version = "1.0.0"
+
+id = "references_overlays"
+version = "1.0.0"
+name = "References Overlays"
+tagline = "PureRef for Blender. You can add references in the 3D Viewport"
+maintainer = "KEN <kken498@gmail.com>"
+type = "add-on"
+tags = [
+    "3D View", 
+    "User Interface"
+]
+blender_version_min = "4.2.0"
+license = ["SPDX:GPL-3.0-or-later",]
+[permissions]
+files = "Import PNG/JPG/JPEG from/to disk"
