@@ -5,6 +5,8 @@ import math
 from gpu_extras.batch import batch_for_shader
 from bpy_extras.io_utils import ImportHelper
 
+dns = bpy.app.driver_namespace
+
 def draw_overlays_toggle():
 	if bpy.context.screen.references_overlays.overlays_toggle == True:
 		for item in bpy.context.screen.references_overlays.reference:
@@ -95,8 +97,6 @@ class References(bpy.types.PropertyGroup):
 
 class Reference_Overlay_Props(bpy.types.PropertyGroup):
 	def update_overlays_toggle(self, context):
-
-		dns = bpy.app.driver_namespace
 
 		if self.overlays_toggle == True:
 			
@@ -200,6 +200,8 @@ class Load_References_OT(bpy.types.Operator, ImportHelper):
 
 		references_overlays.reference_index = len(references_overlays.reference) - 1
 
+		self.report({'INFO'}, f"Loaded {file_elem.name} Image.")
+
 		return {'FINISHED'}
 	
 class Add_References_OT(bpy.types.Operator):
@@ -282,6 +284,45 @@ class Clear_References_OT(bpy.types.Operator):
 
 		context.screen.references_overlays.overlays_toggle = False
 		context.screen.references_overlays.overlays_toggle = mode
+
+		return{'FINISHED'}
+
+class Copy_References_From_OT(bpy.types.Operator):
+	bl_idname = "screen.copy_references_from"
+	bl_label = "Copy References From Other Screen"
+	bl_description = "Copy References From Other Screen"
+	bl_options = {'REGISTER', 'UNDO'}
+
+	name : bpy.props.StringProperty(options={'HIDDEN'})
+	override : bpy.props.BoolProperty(name='Override References', default=False)
+
+	def invoke(self, context, event):
+		wm = context.window_manager
+		return wm.invoke_props_dialog(self)
+
+	def execute(self, context):
+		current = context.screen.references_overlays
+		target = bpy.data.screens[self.name].references_overlays
+
+		if self.override:
+			current.reference.clear()
+
+		for target_item in target.reference:
+			item = current.reference.add()
+			item.name = target_item.name
+			item.size = target_item.size
+			item.flip_x = target_item.flip_x
+			item.flip_y = target_item.flip_y
+			item.rotation = target_item.rotation
+			item.x = target_item.x
+			item.y = target_item.y
+			item.opacity = target_item.opacity
+
+		if target.overlays_toggle == True:
+			target.overlays_toggle = False
+			target.overlays_toggle = True
+
+		self.report({'INFO'}, f"Copyed {self.name} References.")
 
 		return{'FINISHED'}
 
@@ -383,6 +424,21 @@ class OVERLAY_PT_Reference(bpy.types.Panel):
 		layout.label(text="References Overlay")
 
 		layout.label(text = "References Total "+ str(len(references_overlays.reference)), icon = "IMAGE_REFERENCE")
+
+		col = layout.column()
+		col.label(text="Copying references from other screen.")
+
+		for screen in bpy.data.screens:
+			if len(screen.references_overlays.reference) > 0 and screen.name != context.screen.name:
+				col.enabled = True
+				break
+			else:
+				col.enabled = False
+
+		row = col.row(align=True)
+		row.operator("wm.call_menu", text="Add", icon='PASTEDOWN').name='OVERLAY_MT_Add_References'
+		row.operator("wm.call_menu", text="Override").name='OVERLAY_MT_Override_References'
+
 		row = layout.row(align=True)
 		row.operator("screen.load_references", icon = "FILEBROWSER", text = "Load Image")
 		row.operator("screen.clear_references_slot", icon = "TRASH", text = "")
@@ -394,7 +450,7 @@ class OVERLAY_PT_Reference(bpy.types.Panel):
 		col.operator("screen.remove_references_slot", icon = "REMOVE", text = "").index = references_overlays.reference_index
 		col.separator()
 
-		sub = col.column()
+		sub = col.column(align=True)
 		sub.enabled = len(references_overlays.reference) > 0
 
 		up = sub.operator("uilist.entry_move", icon = "TRIA_UP", text = "")
@@ -441,6 +497,42 @@ class OVERLAY_PT_Reference(bpy.types.Panel):
 				layout.prop(item, "size", text="Size")
 				layout.prop(item, "opacity", text="Opacity", slider = True)
 
+class OVERLAY_MT_Add_References(bpy.types.Menu):
+	bl_idname = "OVERLAY_MT_Add_References"
+	bl_label = "Add References"
+
+	@classmethod
+	def poll(cls, context):
+		for screen in bpy.data.screens:
+			if len(screen.references_overlays.reference) > 0 and screen.name != context.screen.name:
+				return True
+
+	def draw(self, context):
+		layout = self.layout
+		for screen in bpy.data.screens:
+			if len(screen.references_overlays.reference) > 0 and screen.name != context.screen.name:
+				op = layout.operator("screen.copy_references_from", icon = "PASTEDOWN", text = screen.name)
+				op.name = screen.name
+				op.override = False
+
+class OVERLAY_MT_Override_References(bpy.types.Menu):
+	bl_idname = "OVERLAY_MT_Override_References"
+	bl_label = "Override References"
+
+	@classmethod
+	def poll(cls, context):
+		for screen in bpy.data.screens:
+			if len(screen.references_overlays.reference) > 0 and screen.name != context.screen.name:
+				return True
+
+	def draw(self, context):
+		layout = self.layout
+		for screen in bpy.data.screens:
+			if len(screen.references_overlays.reference) > 0 and screen.name != context.screen.name:
+				op = layout.operator("screen.copy_references_from", icon = "PASTEDOWN", text = screen.name)
+				op.name = screen.name
+				op.override = True
+				
 def references_overlays_header(self, context):
 	layout = self.layout
 	row = layout.row(align=True)
@@ -458,8 +550,11 @@ classes = (
 	 Remove_References_OT,
 	 Rest_References_OT,
  	 Clear_References_OT,
+	 Copy_References_From_OT,
 	 Move_References_OT,
 	 OVERLAY_PT_Reference,
+	 OVERLAY_MT_Add_References,
+	 OVERLAY_MT_Override_References,
 )
 
 def register():
@@ -468,8 +563,6 @@ def register():
 
 	bpy.types.Screen.references_overlays = bpy.props.PointerProperty(type = Reference_Overlay_Props)
 
-	dns = bpy.app.driver_namespace
-		
 	dns["draw_overlays_toggle"] = bpy.types.SpaceView3D.draw_handler_add(draw_overlays_toggle, (), 'WINDOW', 'POST_PIXEL')
 
 	bpy.types.VIEW3D_HT_header.append(references_overlays_header)
