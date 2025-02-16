@@ -27,8 +27,8 @@ You can add references in the 3D Viewport Overlays
 * Rotate Right - 'E'
 * Rotate Leftt - 'Q'
 * Press 'Shift' Improved Accuracy
+* * Higher Opacity - 'C'
 * Reduce Opacity - 'Z'
-* Higher Opacity - 'C'
 * Increase Rotation - 'R'
 * Reset Size - 'S'
 
