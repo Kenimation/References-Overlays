@@ -19,7 +19,8 @@ You can add references in the 3D Viewport Overlays
 ![Image](https://public-files.gumroad.com/o292gfv4nyquj7m6lwkfn1qmrwbu)
 
 ## References Moving Hotkey
-![Uploading References-Overlays-Color-Pattern_.gif…]()
+![Image](https://imgur.com/48BiMUg.gif)
+
 * Confirm - 'Left-Click'
 * Cancel - 'Esc', 'Right-Click'
 * Scale Up - 'Scroll Up'
@@ -28,10 +29,10 @@ You can add references in the 3D Viewport Overlays
 * Rotate Right - 'E'
 * Rotate Leftt - 'Q'
 * Press 'Shift' Improved Accuracy
-* * Higher Opacity - 'C'
+* Higher Opacity - 'C'
 * Reduce Opacity - 'Z'
 * Increase Rotation - 'R'
 * Reset Size - 'S'
 
 # Utilize the color picker
-![Image](https://public-files.gumroad.com/l9zjhkig269svuysuq9dao5ug34e)
+![Image](https://imgur.com/XpINl2X.gif)
