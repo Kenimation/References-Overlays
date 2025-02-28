@@ -42,6 +42,7 @@ def draw_overlays_toggle():
 				uniform mat4 ModelViewProjectionMatrix;
 				uniform float RotationAngle;
 				uniform vec2 Center;
+				uniform bool depthSet;
 
 				void main() {
 					uv = texCoord;
@@ -52,6 +53,9 @@ def draw_overlays_toggle():
 					float sin_a = sin(RotationAngle);
 					vec2 rotated_pos = vec2(from_center.x * cos_a - from_center.y * sin_a, from_center.x * sin_a + from_center.y * cos_a) + Center;
 					gl_Position = ModelViewProjectionMatrix * vec4(rotated_pos, 0.0, 1.0);
+					if (depthSet) {
+						gl_Position.z = gl_Position.w - 2.4e-7;
+					}
 				}
 				"""
 
@@ -83,6 +87,11 @@ def draw_overlays_toggle():
 				shader.uniform_float("RotationAngle", rotation_angle)
 				shader.uniform_float("Center", (center_x, center_y))
 				shader.uniform_float("opacity", item.opacity)
+				if item.depth_set == "Back":
+					gpu.state.depth_test_set('LESS')
+					shader.uniform_bool("depthSet", True)
+				else:
+					shader.uniform_bool("depthSet", False)
 				batch.draw(shader)
 
 class References(bpy.types.PropertyGroup):
@@ -94,6 +103,12 @@ class References(bpy.types.PropertyGroup):
 	x : bpy.props.FloatProperty(name = 'References Position X', default=0)
 	y : bpy.props.FloatProperty(name = 'References Position Y', default=0)
 	opacity : bpy.props.FloatProperty(name = 'References Opacity',min=0, max = 1, default=1)
+	depth_set : bpy.props.EnumProperty(default = 'Default',
+							items = [('Default', 'Default', ''),
+									('Back', 'Back', ''),
+									],
+							name="Depth"
+									)
 
 class Reference_Overlay_Props(bpy.types.PropertyGroup):
 	def update_overlays_toggle(self, context):
@@ -240,6 +255,7 @@ class Rest_References_OT(bpy.types.Operator):
 		item.flip_x = False
 		item.flip_y = False
 		item.opacity = 1
+		item.depth_set = 'Default'
 
 		context.screen.references_overlays.overlays_toggle = False
 		context.screen.references_overlays.overlays_toggle = mode
@@ -317,6 +333,7 @@ class Copy_References_From_OT(bpy.types.Operator):
 			item.x = target_item.x
 			item.y = target_item.y
 			item.opacity = target_item.opacity
+			item.depth_set = target_item.depth_set
 
 		if target.overlays_toggle == True:
 			target.overlays_toggle = False
@@ -339,12 +356,18 @@ class Move_References_OT(bpy.types.Operator):
 	size = None
 	rotation = None
 	opacity= None
+	depth_set = None
 
 	def modal(self, context, event):
 		context.area.tag_redraw()
 		references_overlays = context.screen.references_overlays
 		item = references_overlays.reference[self.index]
 		
+		if event.type == 'ONE':
+			item.depth_set = 'Default'
+		elif event.type == 'TWO':
+			item.depth_set = 'Back'
+
 		if event.type == 'MOUSEMOVE':
 			item.x = event.mouse_region_x
 			item.y = event.mouse_region_y
@@ -389,6 +412,7 @@ class Move_References_OT(bpy.types.Operator):
 			item.size = self.size
 			item.rotation = self.rotation 
 			item.opacity = self.opacity
+			item.depth_set = self.depth_set
 
 			return {'CANCELLED'}
 
@@ -403,6 +427,7 @@ class Move_References_OT(bpy.types.Operator):
 			self.size = item.size
 			self.rotation = item.rotation 
 			self.opacity = item.opacity
+			self.depth_set = item.depth_set
 			# The arguments we pass the callback.
 			context.window_manager.modal_handler_add(self)
 			return {'RUNNING_MODAL'}
@@ -483,19 +508,34 @@ class OVERLAY_PT_Reference(bpy.types.Panel):
 
 				row.prop_search(item, "name", bpy.data, "images", text = "")
 				row.operator("screen.rest_reference", icon = "FILE_REFRESH", text = "").index = references_overlays.reference_index
-
+				
 				layout.separator()
 
-				layout.prop(image, "filepath", text="Path")
-				row = layout.row(align=True, heading = "Flip")
+				col = layout.column()
+				col.use_property_split = True
+				col.use_property_decorate = False
+
+				col.prop(image, "filepath", text= "Path")
+
+				col.separator()
+				col.prop(item, "size", text="Size")
+
+				col.separator()
+				col.prop(item, "x", text="Position X")
+				col.prop(item, "y", text="Y")
+
+				col.separator()
+				col.prop(item, "rotation", text="Rotation")
+
+				col.separator()
+				col.row().prop(item, "depth_set", text="Depth", expand=True)
+
+				row = col.row(align=True, heading = "Flip")
 				row.prop(item, "flip_x", text="X", toggle=True)
 				row.prop(item, "flip_y", text="Y", toggle=True)
-				row = layout.row(align=True)
-				row.prop(item, "x", text="X")
-				row.prop(item, "y", text="Y")
-				layout.prop(item, "rotation", text="Rotation")
-				layout.prop(item, "size", text="Size")
-				layout.prop(item, "opacity", text="Opacity", slider = True)
+
+				col.separator()
+				col.prop(item, "opacity", text="Opacity", slider = True)
 
 class OVERLAY_MT_Add_References(bpy.types.Menu):
 	bl_idname = "OVERLAY_MT_Add_References"
