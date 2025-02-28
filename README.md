@@ -1,6 +1,6 @@
 ![Image](https://public-files.gumroad.com/kxdzgj7hmdkm0j8nr4051ub6ooqp)
-# References-Overlays
-PureRef for Blender. You can add references in the 3D Viewport
+# Blender Extensions
+https://extensions.blender.org/add-ons/references-overlays/
 
 # PureRef for Blender!!! 
 You can add references in the 3D Viewport Overlays
@@ -31,8 +31,13 @@ You can add references in the 3D Viewport Overlays
 * Press 'Shift' Improved Accuracy
 * Higher Opacity - 'C'
 * Reduce Opacity - 'Z'
+* Set Depth Default - '1'
+* Set Depth Back - '2'
 * Increase Rotation - 'R'
 * Reset Size - 'S'
 
 # Utilize the color picker
 ![Image](https://imgur.com/XpINl2X.gif)
+
+# Set reference depth
+![Image](https://public-files.gumroad.com/t5a5e28mho6h4yj9n57eksdjpdej)
