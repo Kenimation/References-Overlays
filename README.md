@@ -33,7 +33,7 @@ You can add references in the 3D Viewport Overlays
 * Reduce Opacity - 'Z'
 * Set Depth Default - '1'
 * Set Depth Back - '2'
-* Increase Rotation - 'R'
+* Reset Rotation - 'R'
 * Reset Size - 'S'
 
 # Utilize the color picker
