@@ -4,14 +4,19 @@ import os
 import math
 from gpu_extras.batch import batch_for_shader
 from bpy_extras.io_utils import ImportHelper
+from bpy.app.handlers import persistent
 
 dns = bpy.app.driver_namespace
+
+@persistent
+def check_overlays_toggle(self, context):
+	if bpy.context.screen.references_overlays.overlays_toggle == True:
+		dns["draw_overlays_toggle"] = bpy.types.SpaceView3D.draw_handler_add(draw_overlays_toggle, (), 'WINDOW', 'POST_PIXEL')
 
 def draw_overlays_toggle():
 	if bpy.context.screen.references_overlays.overlays_toggle == True:
 		for item in bpy.context.screen.references_overlays.reference:
-
-			if bpy.data.images.get(item.name):
+			if bpy.data.images.get(item.name) and item.hide == False:
 
 				image = bpy.data.images[item.name]
 				texture = gpu.texture.from_image(image)
@@ -71,7 +76,7 @@ def draw_overlays_toggle():
 					fragColor = vec4(color.rgb * 1, color.a * opacity);
 				}
 				"""
-				
+
 				shader = gpu.types.GPUShader(tex_vert_shader, tex_frag_shader)
 				
 				batch = batch_for_shader(
@@ -82,16 +87,19 @@ def draw_overlays_toggle():
 					},
 				)
 				gpu.state.blend_set('ALPHA')
+				
 				shader.bind()
 				shader.uniform_sampler("image", texture)
 				shader.uniform_float("RotationAngle", rotation_angle)
 				shader.uniform_float("Center", (center_x, center_y))
 				shader.uniform_float("opacity", item.opacity)
+				gpu.state.depth_test_set('LESS_EQUAL')
 				if item.depth_set == "Back":
-					gpu.state.depth_test_set('LESS')
+					
 					shader.uniform_bool("depthSet", True)
 				else:
 					shader.uniform_bool("depthSet", False)
+					
 				batch.draw(shader)
 
 class References(bpy.types.PropertyGroup):
@@ -109,6 +117,7 @@ class References(bpy.types.PropertyGroup):
 									],
 							name="Depth"
 									)
+	hide : bpy.props.BoolProperty(name = 'Hide',default=False)
 
 class Reference_Overlay_Props(bpy.types.PropertyGroup):
 	def update_overlays_toggle(self, context):
@@ -152,11 +161,14 @@ class REFERENCES_UL_Overlays(bpy.types.UIList):
 
 			if bpy.data.images.get(item.name):
 				image = bpy.data.images[item.name]
+				row.prop(item, 'hide', text= '', icon = 'HIDE_ON' if item.hide else 'HIDE_OFF', emboss = False)
+				xrow = row.row()
+				xrow.enabled = not item.hide
 				if image.preview:
-					row.label(text=item.name, icon_value = image.preview.icon_id)
+					xrow.label(text=item.name, icon_value = image.preview.icon_id)
 				else:
-					row.label(text=item.name, icon = 'IMAGE_DATA')
-				row.operator("screen.move_reference", icon = "VIEW_PAN", text = "", emboss = False).index = index
+					xrow.label(text=item.name, icon = 'IMAGE_DATA')
+				xrow.operator("screen.move_reference", icon = "VIEW_PAN", text = "", emboss = False).index = index
 			else:
 				row.prop_search(item, "name", bpy.data, "images", text = "")
 
@@ -488,15 +500,16 @@ class OVERLAY_PT_Reference(bpy.types.Panel):
 		down.active_index_path = 'screen.references_overlays.reference_index'
 		down.direction = 'UP'
 
-		sub.separator()
-
-		sub.operator("screen.move_reference", icon = "VIEW_PAN", text = "").index = references_overlays.reference_index
-		
 		if len(references_overlays.reference) > 0:
 
 			item = references_overlays.reference[references_overlays.reference_index]
 			image = bpy.data.images.get(item.name)
 			if image:
+
+				sub.separator()
+				subcol = sub.column()
+				subcol.enabled = not item.hide
+				subcol.operator("screen.move_reference", icon = "VIEW_PAN", text = "").index = references_overlays.reference_index
 
 				if image.preview:
 
@@ -508,7 +521,7 @@ class OVERLAY_PT_Reference(bpy.types.Panel):
 
 				row.prop_search(item, "name", bpy.data, "images", text = "")
 				row.operator("screen.rest_reference", icon = "FILE_REFRESH", text = "").index = references_overlays.reference_index
-				
+
 				layout.separator()
 
 				col = layout.column()
@@ -602,8 +615,8 @@ def register():
 		bpy.utils.register_class(cls)
 
 	bpy.types.Screen.references_overlays = bpy.props.PointerProperty(type = Reference_Overlay_Props)
-
-	dns["draw_overlays_toggle"] = bpy.types.SpaceView3D.draw_handler_add(draw_overlays_toggle, (), 'WINDOW', 'POST_PIXEL')
+	
+	bpy.app.handlers.load_post.append(check_overlays_toggle)
 
 	bpy.types.VIEW3D_HT_header.append(references_overlays_header)
 
