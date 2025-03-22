@@ -15,9 +15,27 @@ def check_overlays_toggle(self, context):
 			if bpy.data.images.get(item.name) and item.hide == False:
 				dns["draw_overlays_toggle"] = bpy.types.SpaceView3D.draw_handler_add(draw_overlays_toggle, (), 'WINDOW', 'POST_PIXEL')
 
+
+def draw_outline(context, min_x, min_y, max_x, max_y, thickness):
+	vertices = [
+		(min_x, min_y),
+		(max_x, min_y),
+		(max_x, max_y),
+		(min_x, max_y),
+		(min_x, min_y),
+	]
+
+	shader = gpu.shader.from_builtin("UNIFORM_COLOR")
+	gpu.state.blend_set("ALPHA")
+	gpu.state.line_width_set(thickness)
+	batch = batch_for_shader(shader, "LINE_STRIP", {"pos": vertices})
+	shader.uniform_float("color", (0.394198,0.569371,1,1))
+	batch.draw(shader)
+	gpu.state.blend_set("NONE")
+
 def draw_overlays_toggle():
 	if bpy.context.screen.references_overlays.overlays_toggle == True:
-		for item in bpy.context.screen.references_overlays.reference:
+		for i, item in enumerate(bpy.context.screen.references_overlays.reference):
 			if bpy.data.images.get(item.name) and item.hide == False:
 
 				image = bpy.data.images[item.name]
@@ -115,6 +133,9 @@ def draw_overlays_toggle():
 						
 					batch.draw(shader)
 
+					if i == bpy.context.screen.references_overlays.reference_index and bpy.context.screen.references_overlays.active_highlight:
+						draw_outline(bpy.context, min_x-3, min_y, max_x, max_y, 3.0)
+
 				except:
 					continue
 
@@ -154,6 +175,8 @@ class Reference_Overlay_Props(bpy.types.PropertyGroup):
 	reference : bpy.props.CollectionProperty(type=References)
 	reference_index : bpy.props.IntProperty(name = "References Overlay", description = "References Overlay")
 	overlays_toggle : bpy.props.BoolProperty(default=False, update=update_overlays_toggle)
+
+	active_highlight : bpy.props.BoolProperty(name = "Active Highlight", default=False)
 
 class REFERENCES_UL_Overlays(bpy.types.UIList):
 	# The draw_item function is called for each item of the collection that is visible in the list.
@@ -365,6 +388,10 @@ class Copy_References_From_OT(bpy.types.Operator):
 			item.y = target_item.y
 			item.opacity = target_item.opacity
 			item.depth_set = target_item.depth_set
+			item.speed = target_item.speed
+			item.use_cyclic = target_item.use_cyclic
+			item.frame_offset = target_item.frame_offset
+			item.hide = target_item.hide
 
 		if target.overlays_toggle == True:
 			target.overlays_toggle = False
@@ -542,7 +569,7 @@ class OVERLAY_PT_Reference(bpy.types.Panel):
 		col.operator("screen.add_references_slot", icon = "ADD", text = "")
 		col.operator("screen.remove_references_slot", icon = "REMOVE", text = "").index = references_overlays.reference_index
 		col.separator()
-
+		
 		sub = col.column(align=True)
 		sub.enabled = len(references_overlays.reference) > 0
 
@@ -555,6 +582,8 @@ class OVERLAY_PT_Reference(bpy.types.Panel):
 		down.list_path ='screen.references_overlays.reference'
 		down.active_index_path = 'screen.references_overlays.reference_index'
 		down.direction = 'UP'
+
+		col.prop(references_overlays, "active_highlight", text="", icon='HIDE_OFF')
 
 		if len(references_overlays.reference) > 0:
 
@@ -588,9 +617,9 @@ class OVERLAY_PT_Reference(bpy.types.Panel):
 
 				if image.source in {'SEQUENCE', 'MOVIE'}:
 					col.separator()
-					col.prop(item, "speed", text=" Speed")
-					col.prop(item, "frame_offset", text=" Offset")
-					col.prop(item, "use_cyclic", text=" Cyclic")
+					col.prop(item, "speed", text="Speed")
+					col.prop(item, "frame_offset", text="Offset")
+					col.prop(item, "use_cyclic", text="Cyclic")
 
 				col.separator()
 				col.prop(item, "size", text="Size")
