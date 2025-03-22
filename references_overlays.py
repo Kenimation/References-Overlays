@@ -27,9 +27,9 @@ def draw_overlays_toggle():
 						image.update()
 
 					if item.use_cyclic:
-						image.gl_load(frame=(bpy.context.scene.frame_current + item.frame_offset)*item.speed % image.frame_duration)
+						image.gl_load(frame=int((bpy.context.scene.frame_current + item.frame_offset)*item.speed % image.frame_duration))
 					else:
-						image.gl_load(frame=(bpy.context.scene.frame_current + item.frame_offset)*item.speed if bpy.context.scene.frame_current > 0 else item.frame_offset + 1)
+						image.gl_load(frame=int((bpy.context.scene.frame_current + item.frame_offset)*item.speed) if bpy.context.scene.frame_current > 0 else item.frame_offset + 1)
 
 				try:
 
@@ -134,7 +134,7 @@ class References(bpy.types.PropertyGroup):
 									],
 							name="Depth"
 									)
-	speed : bpy.props.IntProperty(name = 'Speed', default=1)
+	speed : bpy.props.FloatProperty(name = 'Speed', default=1.0)
 	use_cyclic : bpy.props.BoolProperty(name = 'Cyclic',default=False)
 	frame_offset : bpy.props.IntProperty(name = 'Frame Offset', default=0)
 	hide : bpy.props.BoolProperty(name = 'Hide',default=False)
@@ -216,10 +216,10 @@ class Load_References_OT(bpy.types.Operator, ImportHelper):
 	bl_description = "Load References"
 	bl_options = {'REGISTER', 'UNDO'}
 	
-	filename_ext = '.png, .jpg, .jpeg, .gif, .mp4'  # List of acceptable image file extensions
+	filename_ext = '.bmp, .tiff, .png, .jpg, .jpeg, .gif, .mp4'  # List of acceptable image file extensions
 	
 	filter_glob: bpy.props.StringProperty(
-		default='*.png;*.jpg;*.jpeg;*.gif;*.mp4',  # Update the default filter to include multiple image types
+		default='*.bmp;*.tiff;*.png;*.jpg;*.jpeg;*.gif;*.mp4',  # Update the default filter to include multiple image types
 		options={'HIDDEN'}
 	)
 

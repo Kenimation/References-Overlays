@@ -13,4 +13,4 @@ tags = [
 blender_version_min = "4.2.0"
 license = ["SPDX:GPL-3.0-or-later",]
 [permissions]
-files = "Import PNG/JPG/JPEG/GIF/MP4 from/to disk"
+files = "Import BMP/TIFF/PNG/JPG/JPEG/GIF/MP4 from/to disk"
