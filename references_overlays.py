@@ -467,6 +467,43 @@ class Move_References_OT(bpy.types.Operator):
 			self.report({'WARNING'}, "View3D not found, cannot run operator")
 			return {'CANCELLED'}
 
+class Align_References_OT(bpy.types.Operator):
+	bl_idname = "screen.align_reference"
+	bl_label = "Align References"
+	bl_description = "Align References"
+	bl_options = {'REGISTER', 'UNDO'}
+
+	align_x : bpy.props.StringProperty(name='Align X', options={'HIDDEN'})
+	align_y : bpy.props.StringProperty(name='Align Y', options={'HIDDEN'})
+
+	def execute(self, context):
+		mode = context.screen.references_overlays.overlays_toggle
+		references_overlays = context.screen.references_overlays
+		item = references_overlays.reference[references_overlays.reference_index]
+		image = bpy.data.images[item.name]
+
+		region_width = context.region.width
+		region_height = context.region.height
+
+		if self.align_x == 'LEFT':
+			item.x = image.size[0]/2 * item.size/2
+		elif self.align_x == 'RIGHT':
+			item.x = region_width - image.size[0]/2 * item.size/2
+		elif self.align_x == 'CENTER':
+			item.x = region_width/2
+
+		if self.align_y == 'DOWN':
+			item.y = image.size[1]/2 * item.size/2
+		elif self.align_y == 'UP':
+			item.y = region_height - image.size[1]/2 * item.size/2
+		elif self.align_y == 'CENTER':
+			item.y = region_height/2
+
+		context.screen.references_overlays.overlays_toggle = False
+		context.screen.references_overlays.overlays_toggle = mode
+
+		return{'FINISHED'}
+
 class OVERLAY_PT_Reference(bpy.types.Panel):
 	bl_idname = "OVERLAY_PT_Reference"
 	bl_options = {"DEFAULT_CLOSED"}
@@ -576,6 +613,41 @@ class OVERLAY_PT_Reference(bpy.types.Panel):
 				col.separator()
 				col.prop(item, "opacity", text="Opacity", slider = True)
 
+				col.separator()
+				xrow = col.row()
+				xrow.label(text='Align')
+				sub = xrow.column(align=True)
+				colrow = sub.row(align=True)
+				op = colrow.operator("screen.align_reference", icon = "BLANK1", text = "")
+				op.align_x = 'LEFT'
+				op.align_y =  'UP'
+				op = colrow.operator("screen.align_reference", icon = "TRIA_UP_BAR", text = "")
+				op.align_x = 'CENTER'
+				op.align_y =  'UP'
+				op = colrow.operator("screen.align_reference", icon = "BLANK1", text = "")
+				op.align_x = 'RIGHT'
+				op.align_y =  'UP'
+				colrow = sub.row(align=True)
+				op = colrow.operator("screen.align_reference", icon = "TRIA_LEFT_BAR", text = "")
+				op.align_x = 'LEFT'
+				op.align_y =  'CENTER'
+				op = colrow.operator("screen.align_reference", icon = "LAYER_ACTIVE", text = "")
+				op.align_x = 'CENTER'
+				op.align_y =  'CENTER'
+				op = colrow.operator("screen.align_reference", icon = "TRIA_RIGHT_BAR", text = "")
+				op.align_x = 'RIGHT'
+				op.align_y =  'CENTER'
+				colrow = sub.row(align=True)
+				op = colrow.operator("screen.align_reference", icon = "BLANK1", text = "")
+				op.align_x = 'LEFT'
+				op.align_y =  'DOWN'
+				op = colrow.operator("screen.align_reference", icon = "TRIA_DOWN_BAR", text = "")
+				op.align_x = 'CENTER'
+				op.align_y =  'DOWN'
+				op = colrow.operator("screen.align_reference", icon = "BLANK1", text = "")
+				op.align_x = 'RIGHT'
+				op.align_y =  'DOWN'
+
 class OVERLAY_MT_Add_References(bpy.types.Menu):
 	bl_idname = "OVERLAY_MT_Add_References"
 	bl_label = "Add References"
@@ -631,6 +703,7 @@ classes = (
  	 Clear_References_OT,
 	 Copy_References_From_OT,
 	 Move_References_OT,
+	 Align_References_OT,
 	 OVERLAY_PT_Reference,
 	 OVERLAY_MT_Add_References,
 	 OVERLAY_MT_Override_References,
