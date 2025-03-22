@@ -107,9 +107,8 @@ def draw_overlays_toggle():
 					shader.uniform_float("RotationAngle", rotation_angle)
 					shader.uniform_float("Center", (center_x, center_y))
 					shader.uniform_float("opacity", item.opacity)
-					gpu.state.depth_test_set('LESS_EQUAL')
 					if item.depth_set == "Back":
-						
+						gpu.state.depth_test_set('LESS_EQUAL')
 						shader.uniform_bool("depthSet", True)
 					else:
 						shader.uniform_bool("depthSet", False)
