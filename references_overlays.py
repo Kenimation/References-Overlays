@@ -11,7 +11,9 @@ dns = bpy.app.driver_namespace
 @persistent
 def check_overlays_toggle(self, context):
 	if bpy.context.screen.references_overlays.overlays_toggle == True:
-		dns["draw_overlays_toggle"] = bpy.types.SpaceView3D.draw_handler_add(draw_overlays_toggle, (), 'WINDOW', 'POST_PIXEL')
+		for item in bpy.context.screen.references_overlays.reference:
+			if bpy.data.images.get(item.name) and item.hide == False:
+				dns["draw_overlays_toggle"] = bpy.types.SpaceView3D.draw_handler_add(draw_overlays_toggle, (), 'WINDOW', 'POST_PIXEL')
 
 def draw_overlays_toggle():
 	if bpy.context.screen.references_overlays.overlays_toggle == True:
@@ -19,88 +21,103 @@ def draw_overlays_toggle():
 			if bpy.data.images.get(item.name) and item.hide == False:
 
 				image = bpy.data.images[item.name]
-				texture = gpu.texture.from_image(image)
 
-				if item.flip_x:
-					min_x = item.x+image.size[0]/2 * item.size/2
-					max_x = item.x-image.size[0]/2 * item.size/2
-				else:
-					min_x = item.x-image.size[0]/2 * item.size/2
-					max_x = item.x+image.size[0]/2 * item.size/2
+				if image.source in {'SEQUENCE', 'MOVIE'}:
+					if image.pixels:
+						image.update()
 
-				if item.flip_y:
-					min_y = item.y+image.size[1]/2 * item.size/2
-					max_y = item.y-image.size[1]/2 * item.size/2
-				else:
-					min_y = item.y-image.size[1]/2 * item.size/2
-					max_y = item.y+image.size[1]/2 * item.size/2
+					if item.use_cyclic:
+						image.gl_load(frame=(bpy.context.scene.frame_current + item.frame_offset)*item.speed % image.frame_duration)
+					else:
+						image.gl_load(frame=(bpy.context.scene.frame_current + item.frame_offset)*item.speed if bpy.context.scene.frame_current > 0 else item.frame_offset + 1)
 
-				center_x = (min_x + max_x) / 2
-				center_y = (min_y + max_y) / 2
-				rotation_angle = item.rotation * -1
+				try:
 
-				tex_vert_shader = """
-				in vec2 texCoord;
-				in vec2 pos;
-				out vec2 uv;
+					texture = gpu.texture.from_image(image)
 
-				uniform mat4 ModelViewProjectionMatrix;
-				uniform float RotationAngle;
-				uniform vec2 Center;
-				uniform bool depthSet;
+					if item.flip_x:
+						min_x = item.x+image.size[0]/2 * item.size/2
+						max_x = item.x-image.size[0]/2 * item.size/2
+					else:
+						min_x = item.x-image.size[0]/2 * item.size/2
+						max_x = item.x+image.size[0]/2 * item.size/2
 
-				void main() {
-					uv = texCoord;
+					if item.flip_y:
+						min_y = item.y+image.size[1]/2 * item.size/2
+						max_y = item.y-image.size[1]/2 * item.size/2
+					else:
+						min_y = item.y-image.size[1]/2 * item.size/2
+						max_y = item.y+image.size[1]/2 * item.size/2
 
-					// Calculate rotation based on position
-					vec2 from_center = pos - Center;
-					float cos_a = cos(RotationAngle);
-					float sin_a = sin(RotationAngle);
-					vec2 rotated_pos = vec2(from_center.x * cos_a - from_center.y * sin_a, from_center.x * sin_a + from_center.y * cos_a) + Center;
-					gl_Position = ModelViewProjectionMatrix * vec4(rotated_pos, 0.0, 1.0);
-					if (depthSet) {
-						gl_Position.z = gl_Position.w - 2.4e-7;
+					center_x = (min_x + max_x) / 2
+					center_y = (min_y + max_y) / 2
+					rotation_angle = item.rotation * -1
+
+					tex_vert_shader = """
+					in vec2 texCoord;
+					in vec2 pos;
+					out vec2 uv;
+
+					uniform mat4 ModelViewProjectionMatrix;
+					uniform float RotationAngle;
+					uniform vec2 Center;
+					uniform bool depthSet;
+
+					void main() {
+						uv = texCoord;
+
+						// Calculate rotation based on position
+						vec2 from_center = pos - Center;
+						float cos_a = cos(RotationAngle);
+						float sin_a = sin(RotationAngle);
+						vec2 rotated_pos = vec2(from_center.x * cos_a - from_center.y * sin_a, from_center.x * sin_a + from_center.y * cos_a) + Center;
+						gl_Position = ModelViewProjectionMatrix * vec4(rotated_pos, 0.0, 1.0);
+						if (depthSet) {
+							gl_Position.z = gl_Position.w - 2.4e-7;
+						}
 					}
-				}
-				"""
+					"""
 
-				tex_frag_shader = """
-				in vec2 uv;
-				out vec4 fragColor;
+					tex_frag_shader = """
+					in vec2 uv;
+					out vec4 fragColor;
 
-				uniform sampler2D image;
-				uniform float opacity;
+					uniform sampler2D image;
+					uniform float opacity;
 
-				void main() {
-					vec4 color = texture(image, uv);
-					fragColor = vec4(color.rgb * 1, color.a * opacity);
-				}
-				"""
+					void main() {
+						vec4 color = texture(image, uv);
+						fragColor = vec4(color.rgb * 1, color.a * opacity);
+					}
+					"""
 
-				shader = gpu.types.GPUShader(tex_vert_shader, tex_frag_shader)
-				
-				batch = batch_for_shader(
-					shader, 'TRI_FAN',
-					{
-						"pos": ((min_x, min_y), (max_x, min_y), (max_x, max_y), (min_x, max_y)),
-						"texCoord": ((0, 0), (1, 0), (1, 1), (0, 1)),
-					},
-				)
-				gpu.state.blend_set('ALPHA')
-				
-				shader.bind()
-				shader.uniform_sampler("image", texture)
-				shader.uniform_float("RotationAngle", rotation_angle)
-				shader.uniform_float("Center", (center_x, center_y))
-				shader.uniform_float("opacity", item.opacity)
-				gpu.state.depth_test_set('LESS_EQUAL')
-				if item.depth_set == "Back":
+					shader = gpu.types.GPUShader(tex_vert_shader, tex_frag_shader)
 					
-					shader.uniform_bool("depthSet", True)
-				else:
-					shader.uniform_bool("depthSet", False)
+					batch = batch_for_shader(
+						shader, 'TRI_FAN',
+						{
+							"pos": ((min_x, min_y), (max_x, min_y), (max_x, max_y), (min_x, max_y)),
+							"texCoord": ((0, 0), (1, 0), (1, 1), (0, 1)),
+						},
+					)
+					gpu.state.blend_set('ALPHA')
 					
-				batch.draw(shader)
+					shader.bind()
+					shader.uniform_sampler("image", texture)
+					shader.uniform_float("RotationAngle", rotation_angle)
+					shader.uniform_float("Center", (center_x, center_y))
+					shader.uniform_float("opacity", item.opacity)
+					gpu.state.depth_test_set('LESS_EQUAL')
+					if item.depth_set == "Back":
+						
+						shader.uniform_bool("depthSet", True)
+					else:
+						shader.uniform_bool("depthSet", False)
+						
+					batch.draw(shader)
+
+				except:
+					continue
 
 class References(bpy.types.PropertyGroup):
 	name : bpy.props.StringProperty(name = 'References Name')
@@ -117,6 +134,9 @@ class References(bpy.types.PropertyGroup):
 									],
 							name="Depth"
 									)
+	speed : bpy.props.IntProperty(name = 'Speed', default=1)
+	use_cyclic : bpy.props.BoolProperty(name = 'Cyclic',default=False)
+	frame_offset : bpy.props.IntProperty(name = 'Frame Offset', default=0)
 	hide : bpy.props.BoolProperty(name = 'Hide',default=False)
 
 class Reference_Overlay_Props(bpy.types.PropertyGroup):
@@ -196,10 +216,10 @@ class Load_References_OT(bpy.types.Operator, ImportHelper):
 	bl_description = "Load References"
 	bl_options = {'REGISTER', 'UNDO'}
 	
-	filename_ext = '.png, .jpg, .jpeg'  # List of acceptable image file extensions
+	filename_ext = '.png, .jpg, .jpeg, .gif, .mp4'  # List of acceptable image file extensions
 	
 	filter_glob: bpy.props.StringProperty(
-		default='*.png;*.jpg;*.jpeg',  # Update the default filter to include multiple image types
+		default='*.png;*.jpg;*.jpeg;*.gif;*.mp4',  # Update the default filter to include multiple image types
 		options={'HIDDEN'}
 	)
 
@@ -529,6 +549,12 @@ class OVERLAY_PT_Reference(bpy.types.Panel):
 				col.use_property_decorate = False
 
 				col.prop(image, "filepath", text= "Path")
+
+				if image.source in {'SEQUENCE', 'MOVIE'}:
+					col.separator()
+					col.prop(item, "speed", text=" Speed")
+					col.prop(item, "frame_offset", text=" Offset")
+					col.prop(item, "use_cyclic", text=" Cyclic")
 
 				col.separator()
 				col.prop(item, "size", text="Size")
