@@ -238,10 +238,10 @@ class Load_References_OT(bpy.types.Operator, ImportHelper):
 	bl_description = "Load References"
 	bl_options = {'REGISTER', 'UNDO'}
 	
-	filename_ext = '.bmp, .tiff, .png, .jpg, .jpeg, .gif, .mp4'  # List of acceptable image file extensions
+	filename_ext = '.bmp, .tiff, .png, .jpg, .jpeg, .gif, .mp4, .webm'  # List of acceptable image file extensions
 	
 	filter_glob: bpy.props.StringProperty(
-		default='*.bmp;*.tiff;*.png;*.jpg;*.jpeg;*.gif;*.mp4',  # Update the default filter to include multiple image types
+		default='*.bmp;*.tiff;*.png;*.jpg;*.jpeg;*.gif;*.mp4;*.webm',  # Update the default filter to include multiple image types
 		options={'HIDDEN'}
 	)
 
