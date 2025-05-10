@@ -1,4 +1,4 @@
-![Image](https://public-files.gumroad.com/kxdzgj7hmdkm0j8nr4051ub6ooqp)
+![Image](https://imgur.com/Qlv8Cox.png)
 # Blender Extensions
 https://extensions.blender.org/add-ons/references-overlays/
 
@@ -6,7 +6,7 @@ https://extensions.blender.org/add-ons/references-overlays/
 You can add references in the 3D Viewport Overlays
 
 # Features
-* Add image references directly in the 3D viewport.
+* Add images or video references directly in the 3D viewport.
 * Enable an option to switch it on or off at your convenience.
 * Allow transformations and flipping of the references.
 * Set the opacity of the references.
@@ -41,3 +41,9 @@ You can add references in the 3D Viewport Overlays
 
 # Set reference depth
 ![Image](https://public-files.gumroad.com/t5a5e28mho6h4yj9n57eksdjpdej)
+
+# Video Playing
+![Image](https://imgur.com/HvOZi32.gif)
+
+# Align operator
+![Image](https://imgur.com/gWwcY8T.gif)
