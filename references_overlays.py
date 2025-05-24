@@ -5,6 +5,7 @@ import math
 from gpu_extras.batch import batch_for_shader
 from bpy_extras.io_utils import ImportHelper
 from bpy.app.handlers import persistent
+import rna_keymap_ui
 
 dns = bpy.app.driver_namespace
 
@@ -530,6 +531,16 @@ class Align_References_OT(bpy.types.Operator):
 
 		return{'FINISHED'}
 
+class Toggle_References_OT(bpy.types.Operator):
+	bl_idname = "screen.toggle_references_overlays"
+	bl_label = "Toggle References Overlays"
+	bl_description = "Toggle References Overlays"
+	bl_options = {'REGISTER', 'UNDO'}
+
+	def execute(self, context):
+		context.screen.references_overlays.overlays_toggle = not context.screen.references_overlays.overlays_toggle
+		return {'FINISHED'}
+
 class OVERLAY_PT_Reference(bpy.types.Panel):
 	bl_idname = "OVERLAY_PT_Reference"
 	bl_options = {"DEFAULT_CLOSED"}
@@ -720,6 +731,79 @@ def references_overlays_header(self, context):
 
 	sub.popover(panel="OVERLAY_PT_Reference", text="")
 
+class AddonPreferences(bpy.types.AddonPreferences):
+	bl_idname = __package__
+
+	def draw(self, context):
+		layout = self.layout
+		col = layout.column()
+		row = col.row()
+		row.label(text = "", icon = "EVENT_CTRL")
+		row.label(text = "HotKey")
+
+		wm = context.window_manager
+		kc = wm.keyconfigs.user
+		  
+		property_editor_reg_location = "3D View"
+		km = kc.keymaps[property_editor_reg_location]
+		col.label(text="3D View")
+		kmi = get_hotkey_entry_item(km, 'screen.toggle_references_overlays', '')
+		if kmi:
+			col.context_pointer_set("keymap", km)
+			rna_keymap_ui.draw_kmi([], kc, km, kmi, col, 0)
+			col.separator()
+		else:
+			col.label(text="No hotkey entry found")
+			col.operator('references_overlays.add_hotkey', text = "Add hotkey entry", icon = 'ZOOM_IN')
+
+def get_hotkey_entry_item(km, kmi_name, kmi_value):
+	for i, km_item in enumerate(km.keymap_items):
+		if km.keymap_items.keys()[i] == kmi_name:
+			# if km.keymap_items[i].properties.name == kmi_value: # プロパティがある場合は有効にする
+			return km_item
+	return None
+
+class References_Overlays_OT_AddHotkey(bpy.types.Operator):
+	''' Add hotkey entry '''
+	bl_idname = "references_overlays.add_hotkey"
+	bl_label = "Add Hotkey"
+	bl_options = {'REGISTER', 'INTERNAL'}
+
+	def execute(self, context):
+		add_hotkey()
+		return {'FINISHED'}
+
+def add_hotkey():
+
+	wm = bpy.context.window_manager
+	kc = wm.keyconfigs.addon
+
+	if kc:
+		################################################
+
+		km = kc.keymaps.new(name='3D View', space_type='VIEW_3D')
+		kmi = km.keymap_items.new('screen.toggle_references_overlays', 'F1', 'PRESS',ctrl=True)
+		kmi.active = True
+		addon_keymaps.append((km, kmi))
+
+def remove_hotkey():
+	wm = bpy.context.window_manager
+	kc = wm.keyconfigs.addon
+
+	keymaps_to_remove = ['3D View']
+
+	for keymap_name in keymaps_to_remove:
+		keymap = kc.keymaps.get(keymap_name)
+		if keymap:
+			keymap_items = [kmi for kmi in keymap.keymap_items if kmi in addon_keymaps]
+			for kmi in keymap_items:
+				keymap.keymap_items.remove(kmi)
+			kc.keymaps.remove(keymap)
+
+	addon_keymaps.clear()
+
+addon_keymaps = []
+
 classes = (
 	 References,
 	 Reference_Overlay_Props,
@@ -732,9 +816,12 @@ classes = (
 	 Copy_References_From_OT,
 	 Move_References_OT,
 	 Align_References_OT,
+	 Toggle_References_OT,
 	 OVERLAY_PT_Reference,
 	 OVERLAY_MT_Add_References,
 	 OVERLAY_MT_Override_References,
+	 References_Overlays_OT_AddHotkey,
+	 AddonPreferences,
 )
 
 def register():
