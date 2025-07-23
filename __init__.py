@@ -1,10 +1,19 @@
-from . import references_overlays
+import bpy
+
+from . import(
+    references_overlays,
+    preference
+)
+
+module_list = (
+    references_overlays,
+    preference,
+)
 
 def register():
-    references_overlays.register()
+    for mod in module_list:
+        mod.register()
 
 def unregister():
-    references_overlays.unregister()
-
-if __name__ == "__main__":
-    register()
+    for mod in reversed(module_list):
+        mod.unregister()

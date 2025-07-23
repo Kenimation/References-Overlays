@@ -2,43 +2,81 @@ import bpy
 import gpu
 import os
 import math
+import blf
+import subprocess
+import tempfile
+import sys
 from gpu_extras.batch import batch_for_shader
 from bpy_extras.io_utils import ImportHelper
-from bpy.app.handlers import persistent
-import rna_keymap_ui
 
-dns = bpy.app.driver_namespace
+def draw_name(context, image, x, y, size):
+	font_id = 0  # XXX, need to find out how best to get this.
 
-@persistent
-def check_overlays_toggle(self, context):
-	if bpy.context.screen.references_overlays.overlays_toggle == True:
-		for item in bpy.context.screen.references_overlays.reference:
-			if bpy.data.images.get(item.name) and item.hide == False:
-				dns["draw_overlays_toggle"] = bpy.types.SpaceView3D.draw_handler_add(draw_overlays_toggle, (), 'WINDOW', 'POST_PIXEL')
+	if image:
+		text, _ = os.path.splitext(image.name)
 
+		blf.enable(font_id, blf.SHADOW)
 
-def draw_outline(context, min_x, min_y, max_x, max_y, thickness):
+		color = (1,1,1,1)
+		
+		blf.color(font_id, color[0], color[1], color[2], color[3])
+
+		blf.size(font_id, 16*size)
+		dimensions = blf.dimensions(font_id, text)
+
+		blf.position(font_id, x, y + dimensions[1]/2, 0)
+
+		blf.draw(font_id, text)
+
+		blf.disable(font_id, blf.SHADOW)
+
+def draw_outline(context, min_x, min_y, max_x, max_y, rotation_angle, color, thickness):
+
+	# Calculate the center of the rectangle
+	center_x = (min_x + max_x) / 2
+	center_y = (min_y + max_y) / 2
+	
+	# Define the vertices of the rectangle
 	vertices = [
-		(min_x, min_y),
+		(min_x+2, min_y),
 		(max_x, min_y),
 		(max_x, max_y),
-		(min_x, max_y),
-		(min_x, min_y),
+		(min_x+2, max_y),
+		(min_x+2, min_y)
 	]
+	
+	# Rotate each vertex around the center point
+	rotated_vertices = []
+	for vertex in vertices:
+		# Translate the vertex so that the center of rotation is at the origin
+		translated_x = vertex[0] - center_x
+		translated_y = vertex[1] - center_y
+		
+		# Apply rotation
+		rotated_x = translated_x * math.cos(rotation_angle) - translated_y * math.sin(rotation_angle)
+		rotated_y = translated_x * math.sin(rotation_angle) + translated_y * math.cos(rotation_angle)
+		
+		# Translate the vertex back to its original position
+		rotated_vertices.append((rotated_x + center_x, rotated_y + center_y))
 
 	shader = gpu.shader.from_builtin("UNIFORM_COLOR")
 	gpu.state.blend_set("ALPHA")
 	gpu.state.line_width_set(thickness)
-	batch = batch_for_shader(shader, "LINE_STRIP", {"pos": vertices})
-	shader.uniform_float("color", (0.394198,0.569371,1,1))
+	batch = batch_for_shader(shader, "LINE_STRIP", {"pos": rotated_vertices})
+	shader.uniform_float("color", color)
 	batch.draw(shader)
 	gpu.state.blend_set("NONE")
 
-def draw_overlays_toggle():
-	if bpy.context.screen.references_overlays.overlays_toggle == True:
-		for i, item in enumerate(bpy.context.screen.references_overlays.reference):
-			if bpy.data.images.get(item.name) and item.hide == False:
-
+class Overlay_Reference_Shape(bpy.types.Gizmo):
+	bl_idname = "VIEW3D_GT_Overlay_Reference_Shape"
+	bl_target_properties = ()
+	index = None
+	
+	# Convenience wrappers around private `_gpu` module.
+	def draw_custom_shape(self, shader, index, select_id=None):
+		if index < len(bpy.context.screen.references_overlays.reference):
+			item = bpy.context.screen.references_overlays.reference[index]
+			if bpy.data.images.get(item.name):
 				image = bpy.data.images[item.name]
 
 				if image.source in {'SEQUENCE', 'MOVIE'}:
@@ -50,95 +88,168 @@ def draw_overlays_toggle():
 					else:
 						image.gl_load(frame=int((bpy.context.scene.frame_current + item.frame_offset)*item.speed) if bpy.context.scene.frame_current > 0 else item.frame_offset + 1)
 
-				try:
+				texture = gpu.texture.from_image(image)
+				
+				if item.flip_x:
+					min_x = item.x+image.size[0]/2 * item.size/2
+					max_x = item.x-image.size[0]/2 * item.size/2
+				else:
+					min_x = item.x-image.size[0]/2 * item.size/2
+					max_x = item.x+image.size[0]/2 * item.size/2
 
-					texture = gpu.texture.from_image(image)
+				if item.flip_y:
+					min_y = item.y+image.size[1]/2 * item.size/2
+					max_y = item.y-image.size[1]/2 * item.size/2
+				else:
+					min_y = item.y-image.size[1]/2 * item.size/2
+					max_y = item.y+image.size[1]/2 * item.size/2
+				
+				center_x = (min_x + max_x) / 2
+				center_y = (min_y + max_y) / 2
+				rotation_angle = item.rotation * -1
+				opacity = item.opacity
 
-					if item.flip_x:
-						min_x = item.x+image.size[0]/2 * item.size/2
-						max_x = item.x-image.size[0]/2 * item.size/2
-					else:
-						min_x = item.x-image.size[0]/2 * item.size/2
-						max_x = item.x+image.size[0]/2 * item.size/2
+				batch = batch_for_shader(
+					shader, 'TRI_FAN',
+					{
+						"pos": ((min_x, min_y), (max_x, min_y), (max_x, max_y), (min_x, max_y)),
+						"texCoord": ((0, 0), (1, 0), (1, 1), (0, 1)),
+					},
+				)
+				if bpy.context.screen.references_overlays.show_name:
+					draw_name(bpy.context, image, min_x, max_y, item.size)
 
-					if item.flip_y:
-						min_y = item.y+image.size[1]/2 * item.size/2
-						max_y = item.y-image.size[1]/2 * item.size/2
-					else:
-						min_y = item.y-image.size[1]/2 * item.size/2
-						max_y = item.y+image.size[1]/2 * item.size/2
-
-					center_x = (min_x + max_x) / 2
-					center_y = (min_y + max_y) / 2
-					rotation_angle = item.rotation * -1
-
-					tex_vert_shader = """
-					in vec2 texCoord;
-					in vec2 pos;
-					out vec2 uv;
-
-					uniform mat4 ModelViewProjectionMatrix;
-					uniform float RotationAngle;
-					uniform vec2 Center;
-					uniform bool depthSet;
-
-					void main() {
-						uv = texCoord;
-
-						// Calculate rotation based on position
-						vec2 from_center = pos - Center;
-						float cos_a = cos(RotationAngle);
-						float sin_a = sin(RotationAngle);
-						vec2 rotated_pos = vec2(from_center.x * cos_a - from_center.y * sin_a, from_center.x * sin_a + from_center.y * cos_a) + Center;
-						gl_Position = ModelViewProjectionMatrix * vec4(rotated_pos, 0.0, 1.0);
-						if (depthSet) {
-							gl_Position.z = gl_Position.w - 2.4e-7;
-						}
-					}
-					"""
-
-					tex_frag_shader = """
-					in vec2 uv;
-					out vec4 fragColor;
-
-					uniform sampler2D image;
-					uniform float opacity;
-
-					void main() {
-						vec4 color = texture(image, uv);
-						fragColor = vec4(color.rgb * 1, color.a * opacity);
-					}
-					"""
-
-					shader = gpu.types.GPUShader(tex_vert_shader, tex_frag_shader)
+				if opacity < 0.2:
+					draw_outline(bpy.context, min_x-3, min_y, max_x, max_y, rotation_angle, (1, 0.5, 0.5, 1), 2.5)
 					
-					batch = batch_for_shader(
-						shader, 'TRI_FAN',
-						{
-							"pos": ((min_x, min_y), (max_x, min_y), (max_x, max_y), (min_x, max_y)),
-							"texCoord": ((0, 0), (1, 0), (1, 1), (0, 1)),
-						},
-					)
-					gpu.state.blend_set('ALPHA')
-					
-					shader.bind()
-					shader.uniform_sampler("image", texture)
-					shader.uniform_float("RotationAngle", rotation_angle)
-					shader.uniform_float("Center", (center_x, center_y))
-					shader.uniform_float("opacity", item.opacity)
-					if item.depth_set == "Back":
-						gpu.state.depth_test_set('LESS_EQUAL')
-						shader.uniform_bool("depthSet", True)
-					else:
-						shader.uniform_bool("depthSet", False)
-						
-					batch.draw(shader)
+				if select_id is not None:
+					gpu.select.load_id(select_id)
+				else:
+					if self.is_highlight:
+						draw_outline(bpy.context, min_x-3, min_y, max_x, max_y, rotation_angle, (1, 0.5, 0.5, 1) if item.lock == True else (0.394198,0.569371,1,1), 2.0)
 
-					if i == bpy.context.screen.references_overlays.reference_index and bpy.context.screen.references_overlays.active_highlight:
-						draw_outline(bpy.context, min_x-3, min_y, max_x, max_y, 3.0)
+				gpu.state.blend_set('ALPHA')
 
-				except:
-					continue
+				shader.uniform_sampler("image", texture)
+				shader.uniform_float("RotationAngle", rotation_angle)
+				shader.uniform_float("Center", (center_x, center_y))
+				shader.uniform_float("opacity", opacity)
+				if item.depth_set == "Back":
+					gpu.state.depth_test_set('LESS_EQUAL')
+					shader.uniform_bool("depthSet", True)
+				else:
+					shader.uniform_bool("depthSet", False)
+				
+				batch.draw(shader)
+	
+	@staticmethod
+	def new_custom_shape(self):       
+		 
+		tex_vert_shader = """
+		in vec2 texCoord;
+		in vec2 pos;
+		out vec2 uv;
+
+		uniform mat4 ModelViewProjectionMatrix;
+		uniform float RotationAngle;
+		uniform vec2 Center;
+		uniform bool depthSet;
+
+		void main() {
+			uv = texCoord;
+
+			// Calculate rotation based on position
+			vec2 from_center = pos - Center;
+			float cos_a = cos(RotationAngle);
+			float sin_a = sin(RotationAngle);
+			vec2 rotated_pos = vec2(from_center.x * cos_a - from_center.y * sin_a, from_center.x * sin_a + from_center.y * cos_a) + Center;
+			gl_Position = ModelViewProjectionMatrix * vec4(rotated_pos, 0.0, 1.0);
+			if (depthSet) {
+				gl_Position.z = gl_Position.w - 2.4e-7;
+			}
+		}
+		"""
+
+		tex_frag_shader = """
+		in vec2 uv;
+		out vec4 fragColor;
+
+		uniform sampler2D image;
+		uniform float opacity;
+
+		void main() {
+			vec4 color = texture(image, uv);
+			fragColor = vec4(color.rgb * 1, color.a * opacity);
+		}
+		"""
+
+		shader = gpu.types.GPUShader(tex_vert_shader, tex_frag_shader)
+		
+		return shader
+	
+	def draw(self, context):
+		self.draw_custom_shape(self.custom_shape, self.index)
+		
+	def draw_select(self, context, select_id):
+		self.draw_custom_shape(self.custom_shape, self.index, select_id=select_id)
+
+	def setup(self):
+		self.custom_shape = self.new_custom_shape(self)
+
+	def test_select(self, context, location):
+		item = bpy.context.screen.references_overlays.reference[self.index]
+		if bpy.data.images.get(item.name):
+			image = bpy.data.images[item.name]
+			image_x = image.size[0]/4
+			image_y = image.size[1]/4
+			gizmo_x = self.matrix_basis[0][3]
+			gizmo_y = self.matrix_basis[1][3]
+
+			# Check if the location matches the gizmo's position within a tolerance
+			if abs(gizmo_x - location[0]) < (image_x * item.size) and abs(gizmo_y - location[1]) < (image_y * item.size):
+				return 0 # Return 0 if the location matches the gizmo's position
+			else:
+				return -1 # Return -1 if the location does not match
+		else:
+			return -1
+
+class Overlay_Reference_UI_Control(bpy.types.GizmoGroup):
+	bl_idname = "Overlay_Reference_UI_Control"
+	bl_label = "Overlay Reference Control"
+	bl_space_type = 'VIEW_3D'
+	bl_region_type = 'WINDOW'
+	bl_options = {'PERSISTENT', 'SCALE'}
+	
+	def draw_gizmo(self, i):
+		gizmo = self.gizmos.new(Overlay_Reference_Shape.bl_idname)   #GIZMO_GT_button_2d
+		gizmo.target_set_operator("screen.move_reference").index = i
+		gizmo.use_draw_value = True
+		gizmo.index = i
+		
+	@classmethod
+	def poll(cls, context):
+		return (context.screen.references_overlays.overlays_toggle == True and len(context.screen.references_overlays.reference) > 0)
+
+	def draw_prepare(self, context):
+		for i, gizmo in enumerate(self.gizmos):
+			if i < len(context.screen.references_overlays.reference):
+				item = context.screen.references_overlays.reference[i]
+				if bpy.data.images.get(item.name):
+					self.draw_gizmo(i-1)
+				if item.hide == False:
+					gizmo.hide = False
+				else:
+					gizmo.hide = True
+				gizmo.matrix_basis[0][3] = item.x
+				gizmo.matrix_basis[1][3] = item.y
+				gizmo.scale_basis = item.size * 150
+			else:
+				self.gizmos.remove(gizmo)
+				
+	def setup(self, context):
+		for i, item in enumerate(context.screen.references_overlays.reference):
+			if bpy.data.images.get(item.name):
+				self.draw_gizmo(i)
 
 class References(bpy.types.PropertyGroup):
 	name : bpy.props.StringProperty(name = 'References Name')
@@ -159,25 +270,13 @@ class References(bpy.types.PropertyGroup):
 	use_cyclic : bpy.props.BoolProperty(name = 'Cyclic',default=False)
 	frame_offset : bpy.props.IntProperty(name = 'Frame Offset', default=0)
 	hide : bpy.props.BoolProperty(name = 'Hide',default=False)
+	lock : bpy.props.BoolProperty(name = 'Lock',default=False)
 
 class Reference_Overlay_Props(bpy.types.PropertyGroup):
-	def update_overlays_toggle(self, context):
-
-		if self.overlays_toggle == True:
-			
-			dns["draw_overlays_toggle"] = bpy.types.SpaceView3D.draw_handler_add(draw_overlays_toggle, (), 'WINDOW', 'POST_PIXEL')
-
-		if self.overlays_toggle == False:
-
-			if dns.get("draw_overlays_toggle"):
-
-				bpy.types.SpaceView3D.draw_handler_remove(dns["draw_overlays_toggle"], 'WINDOW')
-
 	reference : bpy.props.CollectionProperty(type=References)
 	reference_index : bpy.props.IntProperty(name = "References Overlay", description = "References Overlay")
-	overlays_toggle : bpy.props.BoolProperty(default=False, update=update_overlays_toggle)
-
-	active_highlight : bpy.props.BoolProperty(name = "Active Highlight", default=False)
+	overlays_toggle : bpy.props.BoolProperty(default=False)
+	show_name : bpy.props.BoolProperty(default=False)
 
 class REFERENCES_UL_Overlays(bpy.types.UIList):
 	# The draw_item function is called for each item of the collection that is visible in the list.
@@ -211,10 +310,10 @@ class REFERENCES_UL_Overlays(bpy.types.UIList):
 					xrow.label(text=item.name, icon_value = image.preview.icon_id)
 				else:
 					xrow.label(text=item.name, icon = 'IMAGE_DATA')
-				xrow.operator("screen.move_reference", icon = "VIEW_PAN", text = "", emboss = False).index = index
 			else:
 				row.prop_search(item, "name", bpy.data, "images", text = "")
 
+			row.prop(item, "lock", text= "", icon = "LOCKED" if item.lock else "UNLOCKED", emboss = False)
 			row.operator("screen.remove_references_slot", icon = "X", text = "", emboss = False).index = index
 
 	def filter_items(self, context, data, propname):
@@ -410,6 +509,7 @@ class Move_References_OT(bpy.types.Operator):
 
 	index : bpy.props.IntProperty(options={'HIDDEN'})
 
+	hide = None
 	x = None
 	y = None
 	size = None
@@ -427,41 +527,68 @@ class Move_References_OT(bpy.types.Operator):
 		elif event.type == 'TWO':
 			item.depth_set = 'Back'
 
-		if event.type == 'MOUSEMOVE':
-			item.x = event.mouse_region_x
-			item.y = event.mouse_region_y
+		if item.lock == False:
 
-		elif event.type == 'WHEELUPMOUSE':
-			# Handle mouse scroll up events
-			item.size = item.size * 1.1
+			if event.type == 'MOUSEMOVE':
+				if event.ctrl:
+					snap_value = 50  # Grid size for snapping
+					if event.shift:
+						snap_value = snap_value/2
+					item.x = round(event.mouse_region_x / snap_value) * snap_value
+					item.y = round(event.mouse_region_y / snap_value) * snap_value
+				else:
+					item.x = event.mouse_region_x
+					item.y = event.mouse_region_y
+
+			elif event.type == 'WHEELUPMOUSE':
+				# Handle mouse scroll up events
+				item.size = item.size * 1.1
+				
+			elif event.type == 'WHEELDOWNMOUSE':
+				# Handle mouse scroll down events
+				item.size = item.size * 0.9
+
+			elif event.type == 'S':
+				item.size = 1
+
+			elif event.type == 'R':
+				item.rotation = 0
+
+			elif event.type == 'C':
+				item.opacity = item.opacity + 0.1
+			elif event.type == 'Z':
+				item.opacity = item.opacity - 0.1
+
+			elif event.type == 'E':
+				if event.shift:
+					item.rotation += math.radians(1)  # Small rotation increment when SHIFT is pressed
+				else:
+					item.rotation += math.radians(5)  # Default rotation increment
+
+			elif event.type == 'Q':
+				if event.shift:
+					item.rotation -= math.radians(1)  # Small rotation increment when SHIFT is pressed
+				else:
+					item.rotation -= math.radians(5)  # Default rotation increment
+
+			elif event.type == 'X':
+				bpy.ops.screen.remove_references_slot(index = self.index)
+				return {'FINISHED'}
 			
-		elif event.type == 'WHEELDOWNMOUSE':
-			# Handle mouse scroll down events
-			item.size = item.size * 0.9
+			elif event.type == 'LEFTMOUSE':
+				return {'FINISHED'}
 
-		elif event.type == 'S':
-			item.size = 1
-
-		elif event.type == 'R':
-			item.rotation = 0
-
-		elif event.type == 'C':
-			item.opacity = item.opacity + 0.1
-		elif event.type == 'Z':
-			item.opacity = item.opacity - 0.1
-
-		elif event.type == 'E':
-			if event.shift:
-				item.rotation += math.radians(1)  # Small rotation increment when SHIFT is pressed
-			else:
-				item.rotation += math.radians(5)  # Default rotation increment
-
-		elif event.type == 'Q':
-			if event.shift:
-				item.rotation -= math.radians(1)  # Small rotation increment when SHIFT is pressed
-			else:
-				item.rotation -= math.radians(5)  # Default rotation increment
-
+			elif event.type in {'RIGHTMOUSE', 'ESC'}:
+				item.x = self.x
+				item.y = self.y 
+				item.size = self.size
+				item.rotation = self.rotation
+				item.opacity = self.opacity
+				item.depth_set = self.depth_set
+				item.hide = self.hide
+				item.lock = self.lock
+				return {'CANCELLED'}
+			
 		elif event.type == 'LEFTMOUSE':
 			return {'FINISHED'}
 
@@ -469,9 +596,11 @@ class Move_References_OT(bpy.types.Operator):
 			item.x = self.x
 			item.y = self.y 
 			item.size = self.size
-			item.rotation = self.rotation 
+			item.rotation = self.rotation
 			item.opacity = self.opacity
 			item.depth_set = self.depth_set
+			item.hide = self.hide
+			item.lock = self.lock
 
 			return {'CANCELLED'}
 
@@ -481,6 +610,8 @@ class Move_References_OT(bpy.types.Operator):
 		if context.area.type == 'VIEW_3D':
 			references_overlays = context.screen.references_overlays
 			item = references_overlays.reference[self.index]
+			self.lock = item.lock
+			self.hide = item.hide
 			self.x = item.x
 			self.y = item.y 
 			self.size = item.size
@@ -556,7 +687,10 @@ class OVERLAY_PT_Reference(bpy.types.Panel):
 
 		layout.label(text = "References Total "+ str(len(references_overlays.reference)), icon = "IMAGE_REFERENCE")
 
+		layout.prop(references_overlays, "show_name", text="Show Name")
+		
 		col = layout.column()
+
 		col.label(text="Copying references from other screen.")
 
 		for screen in bpy.data.screens:
@@ -572,6 +706,7 @@ class OVERLAY_PT_Reference(bpy.types.Panel):
 
 		row = layout.row(align=True)
 		row.operator("screen.load_references", icon = "FILEBROWSER", text = "Load Image")
+		row.operator("screen.paste_reference", icon = "PASTEDOWN", text="")
 		row.operator("screen.clear_references_slot", icon = "TRASH", text = "")
 
 		row = layout.row()
@@ -594,18 +729,11 @@ class OVERLAY_PT_Reference(bpy.types.Panel):
 		down.active_index_path = 'screen.references_overlays.reference_index'
 		down.direction = 'UP'
 
-		col.prop(references_overlays, "active_highlight", text="", icon='HIDE_OFF')
-
 		if len(references_overlays.reference) > 0:
 
 			item = references_overlays.reference[references_overlays.reference_index]
 			image = bpy.data.images.get(item.name)
 			if image:
-
-				sub.separator()
-				subcol = sub.column()
-				subcol.enabled = not item.hide
-				subcol.operator("screen.move_reference", icon = "VIEW_PAN", text = "").index = references_overlays.reference_index
 
 				if image.preview:
 
@@ -617,6 +745,7 @@ class OVERLAY_PT_Reference(bpy.types.Panel):
 
 				row.prop_search(item, "name", bpy.data, "images", text = "")
 				row.operator("screen.rest_reference", icon = "FILE_REFRESH", text = "").index = references_overlays.reference_index
+				row.prop(item, "lock", text= "", icon = "LOCKED" if item.lock else "UNLOCKED", emboss = False)
 
 				layout.separator()
 
@@ -722,7 +851,7 @@ class OVERLAY_MT_Override_References(bpy.types.Menu):
 				op = layout.operator("screen.copy_references_from", icon = "PASTEDOWN", text = screen.name)
 				op.name = screen.name
 				op.override = True
-				
+
 def references_overlays_header(self, context):
 	layout = self.layout
 	row = layout.row(align=True)
@@ -731,37 +860,63 @@ def references_overlays_header(self, context):
 
 	sub.popover(panel="OVERLAY_PT_Reference", text="")
 
-class AddonPreferences(bpy.types.AddonPreferences):
-	bl_idname = __package__
+class Paste_References_OT(bpy.types.Operator):
+	"""Paste Reference from the clipboard"""
+	bl_idname = "screen.paste_reference"
+	bl_label = "Paste Reference from the clipboard"
+	bl_options = {'REGISTER', 'UNDO'}
 
-	def draw(self, context):
-		layout = self.layout
-		col = layout.column()
-		row = col.row()
-		row.label(text = "", icon = "EVENT_CTRL")
-		row.label(text = "HotKey")
+	x: bpy.props.IntProperty(options={'HIDDEN'})
+	y: bpy.props.IntProperty(options={'HIDDEN'})
 
-		wm = context.window_manager
-		kc = wm.keyconfigs.user
-		  
-		property_editor_reg_location = "3D View"
-		km = kc.keymaps[property_editor_reg_location]
-		col.label(text="3D View")
-		kmi = get_hotkey_entry_item(km, 'screen.toggle_references_overlays', '')
-		if kmi:
-			col.context_pointer_set("keymap", km)
-			rna_keymap_ui.draw_kmi([], kc, km, kmi, col, 0)
-			col.separator()
-		else:
-			col.label(text="No hotkey entry found")
-			col.operator('references_overlays.add_hotkey', text = "Add hotkey entry", icon = 'ZOOM_IN')
+	def invoke(self, context, event):
+		self.x = event.mouse_region_x
+		self.y = event.mouse_region_y
+		return self.execute(context)
 
-def get_hotkey_entry_item(km, kmi_name, kmi_value):
-	for i, km_item in enumerate(km.keymap_items):
-		if km.keymap_items.keys()[i] == kmi_name:
-			# if km.keymap_items[i].properties.name == kmi_value: # プロパティがある場合は有効にする
-			return km_item
-	return None
+	def execute(self, context):
+		try:
+			from PIL import ImageGrab, Image
+			image = ImageGrab.grabclipboard()
+			if isinstance(image, Image.Image):
+				temp_dir = tempfile.gettempdir()
+				temp_path = os.path.join(temp_dir, "clipboard_image.png")
+				image.save(temp_path)
+				
+				img = bpy.data.images.load(temp_path)
+
+				references_overlays = context.screen.references_overlays
+				item = references_overlays.reference.add()
+				item.name = img.name
+				item.x = self.x
+				item.y = self.y
+				if context.screen.references_overlays.overlays_toggle == False:
+					context.screen.references_overlays.overlays_toggle = True
+				
+				self.report({'INFO'}, "Image pasted from clipboard")
+			else:
+				self.report({'WARNING'}, "No image in clipboard")
+		except ImportError:
+			self.report({'ERROR'}, "Pillow is not installed. Please install Pillow from the add-on preferences and restart Blender.")
+		except Exception as e:
+			self.report({'ERROR'}, str(e))
+		
+		return {'FINISHED'}
+
+class InstallPillow_OT(bpy.types.Operator):
+	"""Install Pillow"""
+	bl_idname = "preferences.install_pillow"
+	bl_label = "Install Pillow"
+
+	def execute(self, context):
+		try:
+			import ensurepip
+			ensurepip.bootstrap()
+			subprocess.check_call([sys.executable, "-m", "pip", "install", "Pillow"])
+			self.report({'INFO'}, "Pillow installed successfully. Please restart Blender.")
+		except Exception as e:
+			self.report({'ERROR'}, f"Failed to install Pillow: {e}")
+		return {'FINISHED'}
 
 class References_Overlays_OT_AddHotkey(bpy.types.Operator):
 	''' Add hotkey entry '''
@@ -786,6 +941,11 @@ def add_hotkey():
 		kmi.active = True
 		addon_keymaps.append((km, kmi))
 
+		km = kc.keymaps.new(name='3D View', space_type='VIEW_3D')
+		kmi = km.keymap_items.new('screen.paste_reference', 'V', 'PRESS',ctrl=True, alt=True)
+		kmi.active = True
+		addon_keymaps.append((km, kmi))
+
 def remove_hotkey():
 	wm = bpy.context.window_manager
 	kc = wm.keyconfigs.addon
@@ -807,6 +967,8 @@ addon_keymaps = []
 classes = (
 	 References,
 	 Reference_Overlay_Props,
+	 Overlay_Reference_Shape,
+	 Overlay_Reference_UI_Control,
 	 REFERENCES_UL_Overlays,
 	 Load_References_OT,
 	 Add_References_OT,
@@ -821,7 +983,8 @@ classes = (
 	 OVERLAY_MT_Add_References,
 	 OVERLAY_MT_Override_References,
 	 References_Overlays_OT_AddHotkey,
-	 AddonPreferences,
+	 Paste_References_OT,
+	 InstallPillow_OT,
 )
 
 def register():
@@ -829,9 +992,9 @@ def register():
 		bpy.utils.register_class(cls)
 
 	bpy.types.Screen.references_overlays = bpy.props.PointerProperty(type = Reference_Overlay_Props)
-	
-	bpy.app.handlers.load_post.append(check_overlays_toggle)
 
+	add_hotkey()
+	
 	bpy.types.VIEW3D_HT_header.append(references_overlays_header)
 
 def unregister():
@@ -840,8 +1003,6 @@ def unregister():
 
 	bpy.types.VIEW3D_HT_header.remove(references_overlays_header)
 
+	remove_hotkey()
+
 	del bpy.types.Screen.references_overlays
-
-
-
-
