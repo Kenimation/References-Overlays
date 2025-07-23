@@ -18,6 +18,9 @@ You can add references in the 3D Viewport Overlays
 
 ![Image](https://public-files.gumroad.com/o292gfv4nyquj7m6lwkfn1qmrwbu)
 
+# Hotkey
+* Toggle References Overlays - 'Ctrl + F1'
+
 ## References Moving Hotkey
 ![Image](https://imgur.com/48BiMUg.gif)
 
