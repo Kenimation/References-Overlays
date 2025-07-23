@@ -32,7 +32,7 @@ You can add references in the 3D Viewport Overlays
 * Scale Down - 'Scroll Down'
 * Rotate Right - 'E'
 * Rotate Left - 'Q'
-* * Press 'Ctrl' for snap during moving
+* Press 'Ctrl' for snap during moving
 * Press 'Shift' for Improved Accuracy
 * Higher Opacity - 'C'
 * Reduce Opacity - 'Z'
