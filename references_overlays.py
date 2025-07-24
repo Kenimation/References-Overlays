@@ -52,8 +52,6 @@ def draw_name(context, item, x, y):
 	blf.disable(font_id, blf.SHADOW)
 
 def draw_outline(context, min_x, min_y, max_x, max_y, rotation_angle, color, thickness):
-	system = context.preferences.system
-
 	# Calculate the center of the rectangle
 	center_x = (min_x + max_x) / 2
 	center_y = (min_y + max_y) / 2
@@ -84,11 +82,8 @@ def draw_outline(context, min_x, min_y, max_x, max_y, rotation_angle, color, thi
 	shader = gpu.shader.from_builtin("UNIFORM_COLOR")
 	gpu.state.blend_set("ALPHA")
 	gpu.state.line_width_set(thickness)
-	if system.gpu_backend != 'VULKAN':
-		batch = batch_for_shader(shader, "LINE_STRIP", {"pos": rotated_vertices})
-	else:
-		batch = batch_for_shader(shader, "LINE_STRIP", {"pos": vertices})
-
+	batch = batch_for_shader(shader, "LINE_STRIP", {"pos": rotated_vertices})
+	
 	shader.uniform_float("color", color)
 	batch.draw(shader)
 	gpu.state.blend_set("NONE")
@@ -114,18 +109,18 @@ class Overlay_Reference_Shape(bpy.types.Gizmo):
 				else:
 					region_size = item.size
 
-				system = context.preferences.system
-
 				image = bpy.data.images[item.name]
 
 				if image.source in {'SEQUENCE', 'MOVIE'}:
 					if image.pixels:
 						image.update()
 
+					fps = item.fps/10
+ 
 					if item.use_cyclic:
-						image.gl_load(frame=int((context.scene.frame_current + item.frame_offset)*item.speed % image.frame_duration))
+						image.gl_load(frame=int((context.scene.frame_current + item.frame_offset)*(item.speed/fps) % image.frame_duration))
 					else:
-						image.gl_load(frame=int((context.scene.frame_current + item.frame_offset)*item.speed) if context.scene.frame_current > 0 else item.frame_offset + 1)
+						image.gl_load(frame=int((context.scene.frame_current + item.frame_offset)*item.speed/fps) if context.scene.frame_current > 0 else item.frame_offset + 1)
 
 				texture = gpu.texture.from_image(image)
 				
@@ -172,71 +167,72 @@ class Overlay_Reference_Shape(bpy.types.Gizmo):
 				else:
 					if self.is_highlight:
 						draw_outline(context, min_x-3, min_y, max_x, max_y, rotation_angle, (1, 0.5, 0.5, 1) if item.lock == True else (0.394198,0.569371,1,1), 2.0)
-					elif opacity < 0.2 and system.gpu_backend != 'VULKAN':
+					elif opacity < 0.2:
 						draw_outline(context, min_x-3, min_y, max_x, max_y, rotation_angle, (1, 0.5, 0.5, 1), 2.5)
 
 				gpu.state.blend_set('ALPHA')
 
 				shader.uniform_sampler("image", texture)
 
-				if system.gpu_backend != 'VULKAN':
-					shader.uniform_float("RotationAngle", rotation_angle)
-					shader.uniform_float("Center", (center_x, center_y))
-					shader.uniform_float("opacity", opacity)
-					if item.depth_set == "Back":
-						gpu.state.depth_test_set('LESS_EQUAL')
-						shader.uniform_bool("depthSet", True)
-					else:
-						shader.uniform_bool("depthSet", False)
+				shader.uniform_float("RotationAngle", rotation_angle)
+				shader.uniform_float("Center", (center_x, center_y))
+				shader.uniform_float("opacity", opacity)
+				if item.depth_set == "Back":
+					gpu.state.depth_test_set('LESS_EQUAL')
+					shader.uniform_bool("depthSet", True)
+				else:
+					shader.uniform_bool("depthSet", False)
 				
 				batch.draw(shader)
 	
 	@staticmethod
 	def new_custom_shape(self):       
 		 
-		tex_vert_shader = """
-		in vec2 texCoord;
-		in vec2 pos;
-		out vec2 uv;
+		vert_out = gpu.types.GPUStageInterfaceInfo("my_interface")
+		vert_out.smooth('VEC2', "uv")
 
-		uniform mat4 ModelViewProjectionMatrix;
-		uniform float RotationAngle;
-		uniform vec2 Center;
-		uniform bool depthSet;
+		shader_info = gpu.types.GPUShaderCreateInfo()
 
-		void main() {
-			uv = texCoord;
+		shader_info.sampler(0, 'FLOAT_2D', "image")
+		shader_info.vertex_in(0, 'VEC2', "pos")
+		shader_info.vertex_in(1, 'VEC2', "texCoord")
+		shader_info.vertex_out(vert_out)
 
-			// Calculate rotation based on position
-			vec2 from_center = pos - Center;
-			float cos_a = cos(RotationAngle);
-			float sin_a = sin(RotationAngle);
-			vec2 rotated_pos = vec2(from_center.x * cos_a - from_center.y * sin_a, from_center.x * sin_a + from_center.y * cos_a) + Center;
-			gl_Position = ModelViewProjectionMatrix * vec4(rotated_pos, 0.0, 1.0);
-			if (depthSet) {
-				gl_Position.z = gl_Position.w - 2.4e-7;
-			}
-		}
-		"""
+		shader_info.push_constant('MAT4', "ModelViewProjectionMatrix")
 
-		tex_frag_shader = """
-		in vec2 uv;
-		out vec4 fragColor;
+		shader_info.push_constant('FLOAT', "RotationAngle")
+		shader_info.push_constant('VEC2', "Center")
 
-		uniform sampler2D image;
-		uniform float opacity;
+		shader_info.push_constant('FLOAT', "opacity")
+		shader_info.push_constant('BOOL', "depthSet")
 
-		void main() {
-			vec4 color = texture(image, uv);
-			fragColor = vec4(color.rgb * 1, color.a * opacity);
-		}
-		"""
-		
-		system = bpy.context.preferences.system
-		if system.gpu_backend == 'VULKAN':
-			shader = gpu.shader.from_builtin('IMAGE')
-		else:
-			shader = gpu.types.GPUShader(tex_vert_shader, tex_frag_shader)
+		shader_info.fragment_out(0, 'VEC4', "fragColor")
+
+		shader_info.vertex_source(
+			"void main()"
+			"{"
+			"   uv = texCoord;"
+			"   vec2 from_center = pos - Center;"
+			"   float cos_a = cos(RotationAngle);"
+			"   float sin_a = sin(RotationAngle);"
+			"   vec2 rotated_pos = vec2(from_center.x * cos_a - from_center.y * sin_a, from_center.x * sin_a + from_center.y * cos_a) + Center;"
+			"   gl_Position = ModelViewProjectionMatrix * vec4(rotated_pos, 0.0, 1.0);"
+			"   if (depthSet) {"
+			"       gl_Position.z = gl_Position.w - 2.4e-7;"
+			"   }"
+			"}"
+		)
+
+		shader_info.fragment_source(
+			"void main()"
+			"{"
+			"  vec4 color = texture(image, uv);"
+			"  fragColor = vec4(color.rgb * 1.0, color.a*opacity);"
+			"}"
+		)
+
+		# Create a shader from the shader info
+		shader = gpu.shader.create_from_info(shader_info)
 
 		return shader
 	
@@ -250,25 +246,28 @@ class Overlay_Reference_Shape(bpy.types.Gizmo):
 		self.custom_shape = self.new_custom_shape(self)
 
 	def test_select(self, context, location):
-		item = context.screen.references_overlays.reference[self.index]
-		if bpy.data.images.get(item.name):
-			image = bpy.data.images[item.name]
-			image_x = image.size[0]/4
-			image_y = image.size[1]/4
-			gizmo_x = self.matrix_basis[0][3]
-			gizmo_y = self.matrix_basis[1][3]
+		try:
+			item = context.screen.references_overlays.reference[self.index]
+			if bpy.data.images.get(item.name):
+				image = bpy.data.images[item.name]
+				image_x = image.size[0]/4
+				image_y = image.size[1]/4
+				gizmo_x = self.matrix_basis[0][3]
+				gizmo_y = self.matrix_basis[1][3]
 
-			if context.screen.references_overlays.tweak_size:
-				region_size = map_range(item.size/1.75, 0, context.window.width/2, 0, context.region.width) * map_range(item.size/1.75, 0, context.window.height/2, 0, context.region.height)
-			else:
-				region_size = item.size
+				if context.screen.references_overlays.tweak_size:
+					region_size = map_range(item.size/1.75, 0, context.window.width/2, 0, context.region.width) * map_range(item.size/1.75, 0, context.window.height/2, 0, context.region.height)
+				else:
+					region_size = item.size
 
-			# Check if the location matches the gizmo's position within a tolerance
-			if abs(gizmo_x - location[0]) < (image_x * region_size) and abs(gizmo_y - location[1]) < (image_y * region_size):
-				return 0 # Return 0 if the location matches the gizmo's position
+				# Check if the location matches the gizmo's position within a tolerance
+				if abs(gizmo_x - location[0]) < (image_x * region_size) and abs(gizmo_y - location[1]) < (image_y * region_size):
+					return 0 # Return 0 if the location matches the gizmo's position
+				else:
+					return -1 # Return -1 if the location does not match
 			else:
-				return -1 # Return -1 if the location does not match
-		else:
+				return -1
+		except:
 			return -1
 
 class Overlay_Reference_UI_Control(bpy.types.GizmoGroup):
@@ -335,6 +334,7 @@ class References(bpy.types.PropertyGroup):
 	speed : bpy.props.FloatProperty(name = 'Speed', default=1.0)
 	use_cyclic : bpy.props.BoolProperty(name = 'Cyclic',default=False)
 	frame_offset : bpy.props.IntProperty(name = 'Frame Offset', default=0)
+	fps : bpy.props.IntProperty(name = 'FPS Tempo', default=0)
 	hide : bpy.props.BoolProperty(name = 'Hide',default=False)
 	lock : bpy.props.BoolProperty(name = 'Lock',default=False)
 
@@ -433,6 +433,9 @@ class Load_References_OT(bpy.types.Operator, ImportHelper):
 			item.name = image.name
 			item.x = image.size[0]/4
 			item.y = image.size[1]/4
+			item.fps = context.scene.render.fps
+			if image.source in {'SEQUENCE', 'MOVIE'}:
+				item.use_cyclic = True
 
 		references_overlays.reference_index = len(references_overlays.reference) - 1
 
@@ -448,7 +451,8 @@ class Add_References_OT(bpy.types.Operator):
 
 	def execute(self, context):
 		references_overlays = context.screen.references_overlays
-		references_overlays.reference.add()
+		item = references_overlays.reference.add()
+		item.fps = context.scene.render.fps
 		references_overlays.reference_index = len(references_overlays.reference) - 1
 		return{'FINISHED'}
 	
@@ -461,7 +465,6 @@ class Rest_References_OT(bpy.types.Operator):
 	index : bpy.props.IntProperty(options={'HIDDEN'})
 
 	def execute(self, context):
-		mode = context.screen.references_overlays.overlays_toggle
 
 		references_overlays = context.screen.references_overlays
 		item = references_overlays.reference[self.index]
@@ -475,9 +478,7 @@ class Rest_References_OT(bpy.types.Operator):
 		item.flip_y = False
 		item.opacity = 1
 		item.depth_set = 'Default'
-
-		context.screen.references_overlays.overlays_toggle = False
-		context.screen.references_overlays.overlays_toggle = mode
+		item.fps = context.scene.render.fps
 
 		return{'FINISHED'}
 
@@ -490,16 +491,11 @@ class Remove_References_OT(bpy.types.Operator):
 	index : bpy.props.IntProperty(options={'HIDDEN'})
 
 	def execute(self, context):
-		mode = context.screen.references_overlays.overlays_toggle
-
 		references_overlays = context.screen.references_overlays
 		references_overlays.reference.remove(self.index)
 
 		if references_overlays.reference_index > len(references_overlays.reference) - 1:
 			references_overlays.reference_index = references_overlays.reference_index - 1
-
-		context.screen.references_overlays.overlays_toggle = False
-		context.screen.references_overlays.overlays_toggle = mode
 
 		return{'FINISHED'}
 
@@ -510,15 +506,11 @@ class Clear_References_OT(bpy.types.Operator):
 	bl_options = {'REGISTER', 'UNDO'}
 
 	def execute(self, context):
-		mode = context.screen.references_overlays.overlays_toggle
 
 		references_overlays = context.screen.references_overlays
 		references_overlays.reference.clear()
 
 		references_overlays.reference_index = 0
-
-		context.screen.references_overlays.overlays_toggle = False
-		context.screen.references_overlays.overlays_toggle = mode
 
 		return{'FINISHED'}
 
@@ -591,6 +583,8 @@ class Move_References_OT(bpy.types.Operator):
 			item.depth_set = 'Default'
 		elif event.type == 'TWO':
 			item.depth_set = 'Back'
+		elif event.type == 'LEFT_ALT':
+			item.lock = not item.lock
 
 		if item.lock == False:
 
@@ -643,21 +637,7 @@ class Move_References_OT(bpy.types.Operator):
 				bpy.ops.screen.remove_references_slot(index = self.index)
 				return {'FINISHED'}
 			
-			elif event.type == 'LEFTMOUSE':
-				return {'FINISHED'}
-
-			elif event.type in {'RIGHTMOUSE', 'ESC'}:
-				item.x = self.x
-				item.y = self.y 
-				item.size = self.size
-				item.rotation = self.rotation
-				item.opacity = self.opacity
-				item.depth_set = self.depth_set
-				item.hide = self.hide
-				item.lock = self.lock
-				return {'CANCELLED'}
-			
-		elif event.type == 'LEFTMOUSE':
+		if event.type == 'LEFTMOUSE':
 			return {'FINISHED'}
 
 		elif event.type in {'RIGHTMOUSE', 'ESC'}:
@@ -669,7 +649,6 @@ class Move_References_OT(bpy.types.Operator):
 			item.depth_set = self.depth_set
 			item.hide = self.hide
 			item.lock = self.lock
-
 			return {'CANCELLED'}
 
 		return {'RUNNING_MODAL'}
@@ -703,7 +682,6 @@ class Align_References_OT(bpy.types.Operator):
 	align_y : bpy.props.StringProperty(name='Align Y', options={'HIDDEN'})
 
 	def execute(self, context):
-		mode = context.screen.references_overlays.overlays_toggle
 		references_overlays = context.screen.references_overlays
 		item = references_overlays.reference[references_overlays.reference_index]
 		image = bpy.data.images[item.name]
@@ -724,9 +702,6 @@ class Align_References_OT(bpy.types.Operator):
 			item.y = region_height - image.size[1]/2 * item.size/2
 		elif self.align_y == 'CENTER':
 			item.y = region_height/2
-
-		context.screen.references_overlays.overlays_toggle = False
-		context.screen.references_overlays.overlays_toggle = mode
 
 		return{'FINISHED'}
 
@@ -749,7 +724,6 @@ class OVERLAY_PT_Reference(bpy.types.Panel):
 
 	def draw(self, context):
 		references_overlays = context.screen.references_overlays
-		system = context.preferences.system
 
 		layout = self.layout
 		layout.label(text="References Overlay")
@@ -830,6 +804,7 @@ class OVERLAY_PT_Reference(bpy.types.Panel):
 
 				if image.source in {'SEQUENCE', 'MOVIE'}:
 					col.separator()
+					col.prop(item, "fps", text="FPS Tempo")
 					col.prop(item, "speed", text="Speed")
 					col.prop(item, "frame_offset", text="Offset")
 					col.prop(item, "use_cyclic", text="Cyclic")
@@ -841,20 +816,18 @@ class OVERLAY_PT_Reference(bpy.types.Panel):
 				col.prop(item, "x", text="Position X")
 				col.prop(item, "y", text="Y")
 
-				if system.gpu_backend != 'VULKAN':
+				col.separator()
+				col.prop(item, "rotation", text="Rotation")
 
-					col.separator()
-					col.prop(item, "rotation", text="Rotation")
+				col.separator()
+				col.row().prop(item, "depth_set", text="Depth", expand=True)
 
-					col.separator()
-					col.row().prop(item, "depth_set", text="Depth", expand=True)
+				row = col.row(align=True, heading = "Flip")
+				row.prop(item, "flip_x", text="X", toggle=True)
+				row.prop(item, "flip_y", text="Y", toggle=True)
 
-					row = col.row(align=True, heading = "Flip")
-					row.prop(item, "flip_x", text="X", toggle=True)
-					row.prop(item, "flip_y", text="Y", toggle=True)
-
-					col.separator()
-					col.prop(item, "opacity", text="Opacity", slider = True)
+				col.separator()
+				col.prop(item, "opacity", text="Opacity", slider = True)
 
 				col.separator()
 				xrow = col.row()
