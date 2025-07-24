@@ -6,31 +6,53 @@ import blf
 import subprocess
 import tempfile
 import sys
+from datetime import datetime
 from gpu_extras.batch import batch_for_shader
 from bpy_extras.io_utils import ImportHelper
 
-def draw_name(context, image, x, y, size):
+def map_range(value, in_min, in_max, out_min, out_max):
+	if value < 0:
+		new_value = value*-1
+	else:
+		new_value = value
+
+	# First, normalize the input value
+	normalized_value = (new_value - in_min) / (in_max - in_min)
+	
+	# Apply the mapping to the output range
+	mapped_value = normalized_value * (out_max - out_min) + out_min
+
+	if value < 0:
+		mapped_value = mapped_value*-1
+	else:
+		mapped_value = mapped_value
+	
+	return mapped_value
+
+def draw_name(context, item, x, y):
 	font_id = 0  # XXX, need to find out how best to get this.
 
-	if image:
-		text, _ = os.path.splitext(image.name)
+	blf.enable(font_id, blf.SHADOW)
 
-		blf.enable(font_id, blf.SHADOW)
+	color = (1,1,1,1)
+	
+	blf.color(font_id, color[0], color[1], color[2], color[3])
 
-		color = (1,1,1,1)
-		
-		blf.color(font_id, color[0], color[1], color[2], color[3])
+	if context.screen.references_overlays.tweak_size:
+		region_size = map_range(3, 0, context.window.width/2, 0, context.region.width) * map_range(3, 0, context.window.height/2, 0, context.region.height)
+		blf.size(font_id, region_size)
+	else:
+		blf.size(font_id, 16)
+	dimensions = blf.dimensions(font_id, item.tag_name)
+	
+	blf.position(font_id, x, y + dimensions[1]/2, 0)
 
-		blf.size(font_id, 16*size)
-		dimensions = blf.dimensions(font_id, text)
+	blf.draw(font_id, item.tag_name)
 
-		blf.position(font_id, x, y + dimensions[1]/2, 0)
-
-		blf.draw(font_id, text)
-
-		blf.disable(font_id, blf.SHADOW)
+	blf.disable(font_id, blf.SHADOW)
 
 def draw_outline(context, min_x, min_y, max_x, max_y, rotation_angle, color, thickness):
+	system = context.preferences.system
 
 	# Calculate the center of the rectangle
 	center_x = (min_x + max_x) / 2
@@ -62,7 +84,11 @@ def draw_outline(context, min_x, min_y, max_x, max_y, rotation_angle, color, thi
 	shader = gpu.shader.from_builtin("UNIFORM_COLOR")
 	gpu.state.blend_set("ALPHA")
 	gpu.state.line_width_set(thickness)
-	batch = batch_for_shader(shader, "LINE_STRIP", {"pos": rotated_vertices})
+	if system.gpu_backend != 'VULKAN':
+		batch = batch_for_shader(shader, "LINE_STRIP", {"pos": rotated_vertices})
+	else:
+		batch = batch_for_shader(shader, "LINE_STRIP", {"pos": vertices})
+
 	shader.uniform_float("color", color)
 	batch.draw(shader)
 	gpu.state.blend_set("NONE")
@@ -74,9 +100,22 @@ class Overlay_Reference_Shape(bpy.types.Gizmo):
 	
 	# Convenience wrappers around private `_gpu` module.
 	def draw_custom_shape(self, shader, index, select_id=None):
-		if index < len(bpy.context.screen.references_overlays.reference):
-			item = bpy.context.screen.references_overlays.reference[index]
+		context = bpy.context
+		if index < len(context.screen.references_overlays.reference):
+			item = context.screen.references_overlays.reference[index]
 			if bpy.data.images.get(item.name):
+
+				region_x = map_range(item.x, 0, context.window.width, 0, context.region.width)
+				region_y = map_range(item.y, 0, context.window.height, 0, context.region.height)
+
+				
+				if context.screen.references_overlays.tweak_size:
+					region_size = map_range(item.size/1.75, 0, context.window.width/2, 0, context.region.width) * map_range(item.size/1.75, 0, context.window.height/2, 0, context.region.height)
+				else:
+					region_size = item.size
+
+				system = context.preferences.system
+
 				image = bpy.data.images[item.name]
 
 				if image.source in {'SEQUENCE', 'MOVIE'}:
@@ -84,25 +123,25 @@ class Overlay_Reference_Shape(bpy.types.Gizmo):
 						image.update()
 
 					if item.use_cyclic:
-						image.gl_load(frame=int((bpy.context.scene.frame_current + item.frame_offset)*item.speed % image.frame_duration))
+						image.gl_load(frame=int((context.scene.frame_current + item.frame_offset)*item.speed % image.frame_duration))
 					else:
-						image.gl_load(frame=int((bpy.context.scene.frame_current + item.frame_offset)*item.speed) if bpy.context.scene.frame_current > 0 else item.frame_offset + 1)
+						image.gl_load(frame=int((context.scene.frame_current + item.frame_offset)*item.speed) if context.scene.frame_current > 0 else item.frame_offset + 1)
 
 				texture = gpu.texture.from_image(image)
 				
 				if item.flip_x:
-					min_x = item.x+image.size[0]/2 * item.size/2
-					max_x = item.x-image.size[0]/2 * item.size/2
+					min_x = region_x+image.size[0]/2 * region_size/2
+					max_x = region_x-image.size[0]/2 * region_size/2
 				else:
-					min_x = item.x-image.size[0]/2 * item.size/2
-					max_x = item.x+image.size[0]/2 * item.size/2
+					min_x = region_x-image.size[0]/2 * region_size/2
+					max_x = region_x+image.size[0]/2 * region_size/2
 
 				if item.flip_y:
-					min_y = item.y+image.size[1]/2 * item.size/2
-					max_y = item.y-image.size[1]/2 * item.size/2
+					min_y = region_y+image.size[1]/2 * region_size/2
+					max_y = region_y-image.size[1]/2 * region_size/2
 				else:
-					min_y = item.y-image.size[1]/2 * item.size/2
-					max_y = item.y+image.size[1]/2 * item.size/2
+					min_y = region_y-image.size[1]/2 * region_size/2
+					max_y = region_y+image.size[1]/2 * region_size/2
 				
 				center_x = (min_x + max_x) / 2
 				center_y = (min_y + max_y) / 2
@@ -116,29 +155,39 @@ class Overlay_Reference_Shape(bpy.types.Gizmo):
 						"texCoord": ((0, 0), (1, 0), (1, 1), (0, 1)),
 					},
 				)
-				if bpy.context.screen.references_overlays.show_name:
-					draw_name(bpy.context, image, min_x, max_y, item.size)
+				if context.screen.references_overlays.show_name:
+					if item.flip_x:
+						x = max_x
+					else:
+						x = min_x
+					if item.flip_y:
+						y = min_y
+					else:
+						y = max_y
 
-				if opacity < 0.2:
-					draw_outline(bpy.context, min_x-3, min_y, max_x, max_y, rotation_angle, (1, 0.5, 0.5, 1), 2.5)
-					
+					draw_name(context, item, x, y)
+
 				if select_id is not None:
 					gpu.select.load_id(select_id)
 				else:
 					if self.is_highlight:
-						draw_outline(bpy.context, min_x-3, min_y, max_x, max_y, rotation_angle, (1, 0.5, 0.5, 1) if item.lock == True else (0.394198,0.569371,1,1), 2.0)
+						draw_outline(context, min_x-3, min_y, max_x, max_y, rotation_angle, (1, 0.5, 0.5, 1) if item.lock == True else (0.394198,0.569371,1,1), 2.0)
+					elif opacity < 0.2 and system.gpu_backend != 'VULKAN':
+						draw_outline(context, min_x-3, min_y, max_x, max_y, rotation_angle, (1, 0.5, 0.5, 1), 2.5)
 
 				gpu.state.blend_set('ALPHA')
 
 				shader.uniform_sampler("image", texture)
-				shader.uniform_float("RotationAngle", rotation_angle)
-				shader.uniform_float("Center", (center_x, center_y))
-				shader.uniform_float("opacity", opacity)
-				if item.depth_set == "Back":
-					gpu.state.depth_test_set('LESS_EQUAL')
-					shader.uniform_bool("depthSet", True)
-				else:
-					shader.uniform_bool("depthSet", False)
+
+				if system.gpu_backend != 'VULKAN':
+					shader.uniform_float("RotationAngle", rotation_angle)
+					shader.uniform_float("Center", (center_x, center_y))
+					shader.uniform_float("opacity", opacity)
+					if item.depth_set == "Back":
+						gpu.state.depth_test_set('LESS_EQUAL')
+						shader.uniform_bool("depthSet", True)
+					else:
+						shader.uniform_bool("depthSet", False)
 				
 				batch.draw(shader)
 	
@@ -182,9 +231,13 @@ class Overlay_Reference_Shape(bpy.types.Gizmo):
 			fragColor = vec4(color.rgb * 1, color.a * opacity);
 		}
 		"""
-
-		shader = gpu.types.GPUShader(tex_vert_shader, tex_frag_shader)
 		
+		system = bpy.context.preferences.system
+		if system.gpu_backend == 'VULKAN':
+			shader = gpu.shader.from_builtin('IMAGE')
+		else:
+			shader = gpu.types.GPUShader(tex_vert_shader, tex_frag_shader)
+
 		return shader
 	
 	def draw(self, context):
@@ -197,7 +250,7 @@ class Overlay_Reference_Shape(bpy.types.Gizmo):
 		self.custom_shape = self.new_custom_shape(self)
 
 	def test_select(self, context, location):
-		item = bpy.context.screen.references_overlays.reference[self.index]
+		item = context.screen.references_overlays.reference[self.index]
 		if bpy.data.images.get(item.name):
 			image = bpy.data.images[item.name]
 			image_x = image.size[0]/4
@@ -205,8 +258,13 @@ class Overlay_Reference_Shape(bpy.types.Gizmo):
 			gizmo_x = self.matrix_basis[0][3]
 			gizmo_y = self.matrix_basis[1][3]
 
+			if context.screen.references_overlays.tweak_size:
+				region_size = map_range(item.size/1.75, 0, context.window.width/2, 0, context.region.width) * map_range(item.size/1.75, 0, context.window.height/2, 0, context.region.height)
+			else:
+				region_size = item.size
+
 			# Check if the location matches the gizmo's position within a tolerance
-			if abs(gizmo_x - location[0]) < (image_x * item.size) and abs(gizmo_y - location[1]) < (image_y * item.size):
+			if abs(gizmo_x - location[0]) < (image_x * region_size) and abs(gizmo_y - location[1]) < (image_y * region_size):
 				return 0 # Return 0 if the location matches the gizmo's position
 			else:
 				return -1 # Return -1 if the location does not match
@@ -240,9 +298,12 @@ class Overlay_Reference_UI_Control(bpy.types.GizmoGroup):
 					gizmo.hide = False
 				else:
 					gizmo.hide = True
-				gizmo.matrix_basis[0][3] = item.x
-				gizmo.matrix_basis[1][3] = item.y
-				gizmo.scale_basis = item.size * 150
+
+				region_x = map_range(item.x, 0, context.window.width, 0, context.region.width)
+				region_y = map_range(item.y, 0, context.window.height, 0, context.region.height)
+
+				gizmo.matrix_basis[0][3] = region_x
+				gizmo.matrix_basis[1][3] = region_y
 			else:
 				self.gizmos.remove(gizmo)
 				
@@ -252,8 +313,13 @@ class Overlay_Reference_UI_Control(bpy.types.GizmoGroup):
 				self.draw_gizmo(i)
 
 class References(bpy.types.PropertyGroup):
-	name : bpy.props.StringProperty(name = 'References Name')
-	size : bpy.props.FloatProperty(name = 'References Size', default=1)
+	def update_tag_name(self, context):
+		name, _ = os.path.splitext(self.name)
+		self.tag_name = name
+
+	tag_name : bpy.props.StringProperty(name = 'References Tag Name')
+	name : bpy.props.StringProperty(name = 'References Name', update=update_tag_name)
+	size : bpy.props.FloatProperty(name = 'References Size', default=1, min=0.01)
 	flip_x : bpy.props.BoolProperty(name = 'References Flip X',default=False)
 	flip_y : bpy.props.BoolProperty(name = 'References Flip Y',default=False)
 	rotation : bpy.props.FloatProperty(name = 'References Rotation', default=0, subtype='ANGLE')
@@ -275,8 +341,9 @@ class References(bpy.types.PropertyGroup):
 class Reference_Overlay_Props(bpy.types.PropertyGroup):
 	reference : bpy.props.CollectionProperty(type=References)
 	reference_index : bpy.props.IntProperty(name = "References Overlay", description = "References Overlay")
-	overlays_toggle : bpy.props.BoolProperty(default=False)
-	show_name : bpy.props.BoolProperty(default=False)
+	overlays_toggle : bpy.props.BoolProperty(name = "References Overlay Toggle",default=True)
+	show_name : bpy.props.BoolProperty(name = "Show Tag Name",default=False)
+	tweak_size : bpy.props.BoolProperty(name = "Auto Tweak Size",default=False)
 
 class REFERENCES_UL_Overlays(bpy.types.UIList):
 	# The draw_item function is called for each item of the collection that is visible in the list.
@@ -307,9 +374,9 @@ class REFERENCES_UL_Overlays(bpy.types.UIList):
 				xrow = row.row()
 				xrow.enabled = not item.hide
 				if image.preview:
-					xrow.label(text=item.name, icon_value = image.preview.icon_id)
+					xrow.prop(item, "tag_name", text= "", icon_value = image.preview.icon_id, emboss = False)
 				else:
-					xrow.label(text=item.name, icon = 'IMAGE_DATA')
+					xrow.prop(item, "tag_name", text= "", icon = 'IMAGE_DATA', emboss = False)
 			else:
 				row.prop_search(item, "name", bpy.data, "images", text = "")
 
@@ -382,9 +449,7 @@ class Add_References_OT(bpy.types.Operator):
 	def execute(self, context):
 		references_overlays = context.screen.references_overlays
 		references_overlays.reference.add()
-
 		references_overlays.reference_index = len(references_overlays.reference) - 1
-
 		return{'FINISHED'}
 	
 class Rest_References_OT(bpy.types.Operator):
@@ -530,15 +595,18 @@ class Move_References_OT(bpy.types.Operator):
 		if item.lock == False:
 
 			if event.type == 'MOUSEMOVE':
+				region_x = map_range(event.mouse_region_x, 0, context.region.width, 0,context.window.width)
+				region_y = map_range(event.mouse_region_y, 0, context.region.height, 0,context.window.height)
+
 				if event.ctrl:
 					snap_value = 50  # Grid size for snapping
 					if event.shift:
 						snap_value = snap_value/2
-					item.x = round(event.mouse_region_x / snap_value) * snap_value
-					item.y = round(event.mouse_region_y / snap_value) * snap_value
+					item.x = round(region_x / snap_value) * snap_value
+					item.y = round(region_y / snap_value) * snap_value
 				else:
-					item.x = event.mouse_region_x
-					item.y = event.mouse_region_y
+					item.x = region_x
+					item.y = region_y
 
 			elif event.type == 'WHEELUPMOUSE':
 				# Handle mouse scroll up events
@@ -640,8 +708,8 @@ class Align_References_OT(bpy.types.Operator):
 		item = references_overlays.reference[references_overlays.reference_index]
 		image = bpy.data.images[item.name]
 
-		region_width = context.region.width
-		region_height = context.region.height
+		region_width = context.window.width
+		region_height = context.window.height
 
 		if self.align_x == 'LEFT':
 			item.x = image.size[0]/2 * item.size/2
@@ -681,13 +749,16 @@ class OVERLAY_PT_Reference(bpy.types.Panel):
 
 	def draw(self, context):
 		references_overlays = context.screen.references_overlays
+		system = context.preferences.system
 
 		layout = self.layout
 		layout.label(text="References Overlay")
 
 		layout.label(text = "References Total "+ str(len(references_overlays.reference)), icon = "IMAGE_REFERENCE")
 
-		layout.prop(references_overlays, "show_name", text="Show Name")
+		col = layout.column()
+		col.prop(references_overlays, "show_name", text="Show Tag Name")
+		col.prop(references_overlays, "tweak_size", text="Auto Tweak Size")
 		
 		col = layout.column()
 
@@ -742,11 +813,13 @@ class OVERLAY_PT_Reference(bpy.types.Panel):
 				layout.separator()
 
 				row = layout.row(align=True)
-
-				row.prop_search(item, "name", bpy.data, "images", text = "")
-				row.operator("screen.rest_reference", icon = "FILE_REFRESH", text = "").index = references_overlays.reference_index
+				row.prop(item, "tag_name", text= "Name")
 				row.prop(item, "lock", text= "", icon = "LOCKED" if item.lock else "UNLOCKED", emboss = False)
 
+				row = layout.row(align=True)
+				row.prop_search(item, "name", bpy.data, "images", text = "")
+				row.operator("screen.rest_reference", icon = "FILE_REFRESH", text = "").index = references_overlays.reference_index
+				
 				layout.separator()
 
 				col = layout.column()
@@ -768,18 +841,20 @@ class OVERLAY_PT_Reference(bpy.types.Panel):
 				col.prop(item, "x", text="Position X")
 				col.prop(item, "y", text="Y")
 
-				col.separator()
-				col.prop(item, "rotation", text="Rotation")
+				if system.gpu_backend != 'VULKAN':
 
-				col.separator()
-				col.row().prop(item, "depth_set", text="Depth", expand=True)
+					col.separator()
+					col.prop(item, "rotation", text="Rotation")
 
-				row = col.row(align=True, heading = "Flip")
-				row.prop(item, "flip_x", text="X", toggle=True)
-				row.prop(item, "flip_y", text="Y", toggle=True)
+					col.separator()
+					col.row().prop(item, "depth_set", text="Depth", expand=True)
 
-				col.separator()
-				col.prop(item, "opacity", text="Opacity", slider = True)
+					row = col.row(align=True, heading = "Flip")
+					row.prop(item, "flip_x", text="X", toggle=True)
+					row.prop(item, "flip_y", text="Y", toggle=True)
+
+					col.separator()
+					col.prop(item, "opacity", text="Opacity", slider = True)
 
 				col.separator()
 				xrow = col.row()
@@ -880,10 +955,12 @@ class Paste_References_OT(bpy.types.Operator):
 			image = ImageGrab.grabclipboard()
 			if isinstance(image, Image.Image):
 				temp_dir = tempfile.gettempdir()
-				temp_path = os.path.join(temp_dir, "clipboard_image.png")
+				current_time = datetime.now().strftime("%Y-%m-%d %H-%M-%S")
+				temp_path = os.path.join(temp_dir, f"{current_time}_clipboard.png")
 				image.save(temp_path)
 				
 				img = bpy.data.images.load(temp_path)
+				img.use_fake_user = True
 
 				references_overlays = context.screen.references_overlays
 				item = references_overlays.reference.add()
@@ -893,7 +970,7 @@ class Paste_References_OT(bpy.types.Operator):
 				if context.screen.references_overlays.overlays_toggle == False:
 					context.screen.references_overlays.overlays_toggle = True
 				
-				self.report({'INFO'}, "Image pasted from clipboard")
+				self.report({'INFO'}, f"Image pasted from clipboard {current_time}")
 			else:
 				self.report({'WARNING'}, "No image in clipboard")
 		except ImportError:
