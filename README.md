@@ -12,7 +12,8 @@ You can add references in the 3D Viewport Overlays
 * Set the opacity of the references.
 * Change the layer orders of the references.
 * Utilize the color picker on the references.
-
+* Paste the image from the clipboard.
+  
 # Location
 * View 3D > Header
 
@@ -20,6 +21,7 @@ You can add references in the 3D Viewport Overlays
 
 # Hotkey
 * Toggle References Overlays - 'Ctrl + F1'
+* Paste from the clipboard - 'Ctrl + Alt + V'
 
 ## References Moving Hotkey
 ![Image](https://imgur.com/48BiMUg.gif)
@@ -27,26 +29,33 @@ You can add references in the 3D Viewport Overlays
 * Confirm - 'Left-Click'
 * Cancel - 'Esc', 'Right-Click'
 * Scale Up - 'Scroll Up'
-
 * Scale Down - 'Scroll Down'
 * Rotate Right - 'E'
-* Rotate Leftt - 'Q'
-* Press 'Shift' Improved Accuracy
+* Rotate Left - 'Q'
+* Press 'Ctrl' for snap during moving
+* Press 'Shift' for Improved Accuracy
 * Higher Opacity - 'C'
 * Reduce Opacity - 'Z'
 * Set Depth Default - '1'
 * Set Depth Back - '2'
 * Reset Rotation - 'R'
 * Reset Size - 'S'
+* Remove - 'X'
 
-# Utilize the color picker
-![Image](https://imgur.com/XpINl2X.gif)
-
+# Paste and drag the reference directly
+![Image](https://i.imgur.com/RzuqQUF.gif)
 # Set reference depth
 ![Image](https://public-files.gumroad.com/t5a5e28mho6h4yj9n57eksdjpdej)
-
 # Video Playing
 ![Image](https://imgur.com/HvOZi32.gif)
-
+# Utilize the color picker
+![Image](https://imgur.com/XpINl2X.gif)
+# Set reference locked
+![Image](https://i.imgur.com/ZBwzAj1.gif)
 # Align operator
 ![Image](https://imgur.com/gWwcY8T.gif)
+
+# Notice
+* Vulkan is not supported.
+* Feature pasting the image from the clipboard requires the Pillow Library, which you can install Pillow from the add-on preferences
+
