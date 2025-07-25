@@ -2,11 +2,13 @@ import bpy
 
 from . import(
     references_overlays,
-    preference
+    operator,
+    preference,
 )
 
 module_list = (
     references_overlays,
+    operator,
     preference,
 )
 

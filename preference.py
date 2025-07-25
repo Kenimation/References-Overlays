@@ -38,6 +38,14 @@ class AddonPreferences(bpy.types.AddonPreferences):
 		else:
 			col.label(text="No hotkey entry found")
 			col.operator('references_overlays.add_hotkey', text = "Add hotkey entry", icon = 'ZOOM_IN')
+		kmi = get_hotkey_entry_item(km, 'screen.toggle_lock_references_overlays', '')
+		if kmi:
+			col.context_pointer_set("keymap", km)
+			rna_keymap_ui.draw_kmi([], kc, km, kmi, col, 0)
+			col.separator()
+		else:
+			col.label(text="No hotkey entry found")
+			col.operator('references_overlays.add_hotkey', text = "Add hotkey entry", icon = 'ZOOM_IN')
 		kmi = get_hotkey_entry_item(km, 'screen.paste_reference', '')
 		if kmi:
 			col.context_pointer_set("keymap", km)
