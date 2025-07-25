@@ -40,6 +40,7 @@ You can add references in the 3D Viewport Overlays
 * Set Depth Back - '2'
 * Reset Rotation - 'R'
 * Reset Size - 'S'
+* Lock - 'ALT'
 * Remove - 'X'
 
 # Paste and drag the reference directly
@@ -56,6 +57,5 @@ You can add references in the 3D Viewport Overlays
 ![Image](https://imgur.com/gWwcY8T.gif)
 
 # Notice
-* Vulkan is not supported.
 * Feature pasting the image from the clipboard requires the Pillow Library, which you can install Pillow from the add-on preferences
 
