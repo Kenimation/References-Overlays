@@ -7,13 +7,17 @@ You can add references in the 3D Viewport Overlays
 
 # Features
 * Add images or video references directly in the 3D viewport.
+* Drag the references directly.
 * Enable an option to switch it on or off at your convenience.
 * Allow transformations and flipping of the references.
 * Set the opacity of the references.
 * Change the layer orders of the references.
 * Utilize the color picker on the references.
+* Set the references depth.
+* Multiple media support (Video, GIF, etc).
+* Cropping the references.
 * Paste the image from the clipboard.
-  
+
 # Location
 * View 3D > Header
 
@@ -21,10 +25,11 @@ You can add references in the 3D Viewport Overlays
 
 # Hotkey
 * Toggle References Overlays - 'Ctrl + F1'
+* Toggle References Overlays Locked - 'Ctrl + T'
 * Paste from the clipboard - 'Ctrl + Alt + V'
 
 ## References Moving Hotkey
-![Image](https://imgur.com/48BiMUg.gif)
+![Image](https://i.imgur.com/tsufFcY.gif)
 
 * Confirm - 'Left-Click'
 * Cancel - 'Esc', 'Right-Click'
@@ -33,28 +38,27 @@ You can add references in the 3D Viewport Overlays
 * Rotate Right - 'E'
 * Rotate Left - 'Q'
 * Press 'Ctrl' for snap during moving
-* Press 'Shift' for Improved Accuracy
-* Higher Opacity - 'C'
-* Reduce Opacity - 'Z'
 * Set Depth Default - '1'
 * Set Depth Back - '2'
+* Higher Opacity - 'C'
+* Reduce Opacity - 'Z'
 * Reset Rotation - 'R'
 * Reset Size - 'S'
-* Lock - 'ALT'
 * Remove - 'X'
+# Shifting Control Hotkey
+![image](https://i.imgur.com/ozMPgcJ.gif)
+* Press 'Shift' while moving the reference
+* Zoom in - 'Scroll Up'
+* Zoom Out - 'Scroll Down'
+* Rest Zoom - 'S
+* Rest Anchor - 'R'
 
-# Paste and drag the reference directly
-![Image](https://i.imgur.com/RzuqQUF.gif)
-# Set reference depth
-![Image](https://public-files.gumroad.com/t5a5e28mho6h4yj9n57eksdjpdej)
+# Cropping the reference
+![image](https://i.imgur.com/o7ZgILv.gif)
 # Video Playing
 ![Image](https://imgur.com/HvOZi32.gif)
 # Utilize the color picker
 ![Image](https://imgur.com/XpINl2X.gif)
-# Set reference locked
-![Image](https://i.imgur.com/ZBwzAj1.gif)
-# Align operator
-![Image](https://imgur.com/gWwcY8T.gif)
 
 # Notice
 * Feature pasting the image from the clipboard requires the Pillow Library, which you can install Pillow from the add-on preferences
