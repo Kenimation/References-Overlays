@@ -103,7 +103,6 @@ class Overlay_Reference_Shape(bpy.types.Gizmo):
 				region_x = map_range(item.x, 0, context.window.width, 0, context.region.width)
 				region_y = map_range(item.y, 0, context.window.height, 0, context.region.height)
 
-				
 				if context.screen.references_overlays.tweak_size:
 					region_size = map_range(item.size/1.75, 0, context.window.width/2, 0, context.region.width) * map_range(item.size/1.75, 0, context.window.height/2, 0, context.region.height)
 				else:
@@ -150,25 +149,6 @@ class Overlay_Reference_Shape(bpy.types.Gizmo):
 						"texCoord": ((0, 0), (1, 0), (1, 1), (0, 1)),
 					},
 				)
-				if context.screen.references_overlays.show_name:
-					if item.flip_x:
-						x = max_x
-					else:
-						x = min_x
-					if item.flip_y:
-						y = min_y
-					else:
-						y = max_y
-
-					draw_name(context, item, x, y)
-
-				if select_id is not None:
-					gpu.select.load_id(select_id)
-				else:
-					if self.is_highlight:
-						draw_outline(context, min_x-3, min_y, max_x, max_y, rotation_angle, (1, 0.5, 0.5, 1) if item.lock == True else (0.394198,0.569371,1,1), 2.0)
-					elif opacity < 0.2:
-						draw_outline(context, min_x-3, min_y, max_x, max_y, rotation_angle, (1, 0.5, 0.5, 1), 2.5)
 
 				gpu.state.blend_set('ALPHA')
 
@@ -184,6 +164,25 @@ class Overlay_Reference_Shape(bpy.types.Gizmo):
 					shader.uniform_bool("depthSet", False)
 				
 				batch.draw(shader)
+
+				if select_id is not None:
+					gpu.select.load_id(select_id)
+				else:
+					if self.is_highlight:
+						draw_outline(context, min_x-3, min_y, max_x, max_y, rotation_angle, (1, 0.5, 0.5, 1) if item.lock == True else (0.394198,0.569371,1,1), 2.5)
+					elif opacity < 0.2:
+						draw_outline(context, min_x-3, min_y, max_x, max_y, rotation_angle, (1, 0.5, 0.5, 1), 2.5)
+
+				if context.screen.references_overlays.show_name:
+					if item.flip_x:
+						x = max_x
+					else:
+						x = min_x
+					if item.flip_y:
+						y = min_y
+					else:
+						y = max_y
+					draw_name(context, item, x, y)
 	
 	@staticmethod
 	def new_custom_shape(self):       
@@ -549,6 +548,9 @@ class Copy_References_From_OT(bpy.types.Operator):
 			item.use_cyclic = target_item.use_cyclic
 			item.frame_offset = target_item.frame_offset
 			item.hide = target_item.hide
+			item.lock = target_item.lock
+			item.fps = target_item.fps
+			item.tag_name = target_item.tag_name
 
 		if target.overlays_toggle == True:
 			target.overlays_toggle = False
@@ -713,6 +715,51 @@ class Toggle_References_OT(bpy.types.Operator):
 
 	def execute(self, context):
 		context.screen.references_overlays.overlays_toggle = not context.screen.references_overlays.overlays_toggle
+		return {'FINISHED'}
+
+class Paste_References_OT(bpy.types.Operator):
+	"""Paste Reference from the clipboard"""
+	bl_idname = "screen.paste_reference"
+	bl_label = "Paste Reference from the clipboard"
+	bl_options = {'REGISTER', 'UNDO'}
+
+	x: bpy.props.IntProperty(options={'HIDDEN'})
+	y: bpy.props.IntProperty(options={'HIDDEN'})
+
+	def invoke(self, context, event):
+		self.x = event.mouse_region_x
+		self.y = event.mouse_region_y
+		return self.execute(context)
+
+	def execute(self, context):
+		try:
+			from PIL import ImageGrab, Image
+			image = ImageGrab.grabclipboard()
+			if isinstance(image, Image.Image):
+				temp_dir = tempfile.gettempdir()
+				current_time = datetime.now().strftime("%Y-%m-%d %H-%M-%S")
+				temp_path = os.path.join(temp_dir, f"{current_time}_clipboard.png")
+				image.save(temp_path)
+				
+				img = bpy.data.images.load(temp_path)
+				img.use_fake_user = True
+
+				references_overlays = context.screen.references_overlays
+				item = references_overlays.reference.add()
+				item.name = img.name
+				item.x = self.x
+				item.y = self.y
+				if context.screen.references_overlays.overlays_toggle == False:
+					context.screen.references_overlays.overlays_toggle = True
+				
+				self.report({'INFO'}, f"Image pasted from clipboard {current_time}")
+			else:
+				self.report({'WARNING'}, "No image in clipboard")
+		except ImportError:
+			self.report({'ERROR'}, "Pillow is not installed. Please install Pillow from the add-on preferences and restart Blender.")
+		except Exception as e:
+			self.report({'ERROR'}, str(e))
+		
 		return {'FINISHED'}
 
 class OVERLAY_PT_Reference(bpy.types.Panel):
@@ -907,51 +954,6 @@ def references_overlays_header(self, context):
 	sub = row.row(align=True)
 
 	sub.popover(panel="OVERLAY_PT_Reference", text="")
-
-class Paste_References_OT(bpy.types.Operator):
-	"""Paste Reference from the clipboard"""
-	bl_idname = "screen.paste_reference"
-	bl_label = "Paste Reference from the clipboard"
-	bl_options = {'REGISTER', 'UNDO'}
-
-	x: bpy.props.IntProperty(options={'HIDDEN'})
-	y: bpy.props.IntProperty(options={'HIDDEN'})
-
-	def invoke(self, context, event):
-		self.x = event.mouse_region_x
-		self.y = event.mouse_region_y
-		return self.execute(context)
-
-	def execute(self, context):
-		try:
-			from PIL import ImageGrab, Image
-			image = ImageGrab.grabclipboard()
-			if isinstance(image, Image.Image):
-				temp_dir = tempfile.gettempdir()
-				current_time = datetime.now().strftime("%Y-%m-%d %H-%M-%S")
-				temp_path = os.path.join(temp_dir, f"{current_time}_clipboard.png")
-				image.save(temp_path)
-				
-				img = bpy.data.images.load(temp_path)
-				img.use_fake_user = True
-
-				references_overlays = context.screen.references_overlays
-				item = references_overlays.reference.add()
-				item.name = img.name
-				item.x = self.x
-				item.y = self.y
-				if context.screen.references_overlays.overlays_toggle == False:
-					context.screen.references_overlays.overlays_toggle = True
-				
-				self.report({'INFO'}, f"Image pasted from clipboard {current_time}")
-			else:
-				self.report({'WARNING'}, "No image in clipboard")
-		except ImportError:
-			self.report({'ERROR'}, "Pillow is not installed. Please install Pillow from the add-on preferences and restart Blender.")
-		except Exception as e:
-			self.report({'ERROR'}, str(e))
-		
-		return {'FINISHED'}
 
 class InstallPillow_OT(bpy.types.Operator):
 	"""Install Pillow"""
