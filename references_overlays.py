@@ -296,23 +296,28 @@ class Overlay_Reference_UI_Control(bpy.types.GizmoGroup):
 		return (context.screen.references_overlays.overlays_toggle == True and len(context.screen.references_overlays.reference) > 0)
 
 	def draw_prepare(self, context):
-		for i, gizmo in enumerate(self.gizmos):
-			if i < len(context.screen.references_overlays.reference):
-				item = context.screen.references_overlays.reference[i]
-				if bpy.data.images.get(item.name):
-					self.draw_gizmo(i-1)
-				if item.hide == False:
-					gizmo.hide = False
+		if len(self.gizmos) == 1 and len(context.screen.references_overlays.reference) == 1:
+			item = context.screen.references_overlays.reference[0]
+			gizmo = self.gizmos[0]
+			gizmo.hide = item.hide
+			region_x = map_range(item.x, 0, context.window.width, 0, context.region.width)
+			region_y = map_range(item.y, 0, context.window.height, 0, context.region.height)
+			gizmo.matrix_basis[0][3] = region_x
+			gizmo.matrix_basis[1][3] = region_y
+		else:
+			for i, gizmo in enumerate(self.gizmos):
+				if i < len(context.screen.references_overlays.reference):
+					item = context.screen.references_overlays.reference[i]
+					if bpy.data.images.get(item.name):
+						self.draw_gizmo(i-1)
+
+					gizmo.hide = item.hide
+					region_x = map_range(item.x, 0, context.window.width, 0, context.region.width)
+					region_y = map_range(item.y, 0, context.window.height, 0, context.region.height)
+					gizmo.matrix_basis[0][3] = region_x
+					gizmo.matrix_basis[1][3] = region_y
 				else:
-					gizmo.hide = True
-
-				region_x = map_range(item.x, 0, context.window.width, 0, context.region.width)
-				region_y = map_range(item.y, 0, context.window.height, 0, context.region.height)
-
-				gizmo.matrix_basis[0][3] = region_x
-				gizmo.matrix_basis[1][3] = region_y
-			else:
-				self.gizmos.remove(gizmo)
+					self.gizmos.remove(gizmo)
 				
 	def setup(self, context):
 		for i, item in enumerate(context.screen.references_overlays.reference):
