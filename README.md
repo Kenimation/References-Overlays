@@ -45,9 +45,12 @@ You can add references in the 3D Viewport Overlays
 * Reset Rotation - 'R'
 * Reset Size - 'S'
 * Remove - 'X'
+* Press 'Ctrl' for snap mode during moving
+* Press "Shift" for Precision Mode
+
 # Shifting Control Hotkey
 ![image](https://i.imgur.com/ozMPgcJ.gif)
-* Press 'Shift' while moving the reference
+* Press 'Alt' while moving the reference
 * Zoom in - 'Scroll Up'
 * Zoom Out - 'Scroll Down'
 * Rest Zoom - 'S
