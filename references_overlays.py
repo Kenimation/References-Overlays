@@ -219,57 +219,56 @@ class Overlay_Reference_Shape(bpy.types.Gizmo):
 		self.custom_shape = self.new_custom_shape(self)
 
 	def test_select(self, context, location):
-		if context.screen.references_overlays.full_lock:
+		if context.screen.references_overlays.full_lock or self.index >= len(context.screen.references_overlays.reference):
 			return -1
 		
-		if self.index <= len(context.screen.references_overlays.reference):
-			item = context.screen.references_overlays.reference[self.index]
-			if bpy.data.images.get(item.name):
-				image = bpy.data.images[item.name]
+		item = context.screen.references_overlays.reference[self.index]
+		if bpy.data.images.get(item.name):
+			image = bpy.data.images[item.name]
 
-				if context.screen.references_overlays.tweak_size:
-					region_size = map_range(item.size/1.75, 0, context.window.width/2, 0, context.region.width) * map_range(item.size/1.75, 0, context.window.height/2, 0, context.region.height)
-				else:
-					region_size = item.size
-
-				region_x = map_range(item.x, 0, context.window.width, 0, context.region.width)
-				region_y = map_range(item.y, 0, context.window.height, 0, context.region.height)
-				
-				if item.flip_x:
-					left = item.crop_right
-					right = item.crop_left
-					min_x = region_x+image.size[0]/2 * region_size/2*(1-left)
-					max_x = region_x-image.size[0]/2 * region_size/2*(1-right)
-				else:
-					left = item.crop_left
-					right = item.crop_right
-					min_x = region_x-image.size[0]/2 * region_size/2*(1-left) 
-					max_x = region_x+image.size[0]/2 * region_size/2*(1-right)
-
-				if item.flip_y:
-					top = item.crop_bottom
-					bottom = item.crop_top
-					min_y = region_y+image.size[1]/2 * region_size/2*(1-bottom)
-					max_y = region_y-image.size[1]/2 * region_size/2*(1-top)
-				else:
-					top = item.crop_top
-					bottom = item.crop_bottom
-					min_y = region_y-image.size[1]/2 * region_size/2*(1-bottom)
-					max_y = region_y+image.size[1]/2 * region_size/2*(1-top)
-
-				center_x = (min_x + max_x) / 2
-				center_y = (min_y + max_y) / 2
-				rotation_angle = item.rotation * -1
-				pos = ((min_x, min_y), (max_x, min_y), (max_x, max_y), (min_x, max_y))
-				
-				area = rotate_vertices(pos, center_x, center_y, rotation_angle)
-
-				if point_in_area(location, area):
-					return 0  # Location matches the gizmo's position within the area
-				else:
-					return -1  # Location is outside the defined area
+			if context.screen.references_overlays.tweak_size:
+				region_size = map_range(item.size/1.75, 0, context.window.width/2, 0, context.region.width) * map_range(item.size/1.75, 0, context.window.height/2, 0, context.region.height)
 			else:
-				return -1
+				region_size = item.size
+
+			region_x = map_range(item.x, 0, context.window.width, 0, context.region.width)
+			region_y = map_range(item.y, 0, context.window.height, 0, context.region.height)
+			
+			if item.flip_x:
+				left = item.crop_right
+				right = item.crop_left
+				min_x = region_x+image.size[0]/2 * region_size/2*(1-left)
+				max_x = region_x-image.size[0]/2 * region_size/2*(1-right)
+			else:
+				left = item.crop_left
+				right = item.crop_right
+				min_x = region_x-image.size[0]/2 * region_size/2*(1-left)
+				max_x = region_x+image.size[0]/2 * region_size/2*(1-right)
+			if item.flip_y:
+				top = item.crop_bottom
+				bottom = item.crop_top
+				min_y = region_y+image.size[1]/2 * region_size/2*(1-bottom)
+				max_y = region_y-image.size[1]/2 * region_size/2*(1-top)
+			else:
+				top = item.crop_top
+				bottom = item.crop_bottom
+				min_y = region_y-image.size[1]/2 * region_size/2*(1-bottom)
+				max_y = region_y+image.size[1]/2 * region_size/2*(1-top)
+
+			center_x = (min_x + max_x) / 2
+			center_y = (min_y + max_y) / 2
+			rotation_angle = item.rotation * -1
+			pos = ((min_x, min_y), (max_x, min_y), (max_x, max_y), (min_x, max_y))
+			
+			area = rotate_vertices(pos, center_x, center_y, rotation_angle)
+
+			if point_in_area(location, area):
+				return 0  # Location matches the gizmo's position within the area
+			else:
+				return -1  # Location is outside the defined area
+			
+		else:
+			return -1
 
 class Overlay_Reference_UI_Control(bpy.types.GizmoGroup):
 	bl_idname = "Overlay_Reference_UI_Control"
