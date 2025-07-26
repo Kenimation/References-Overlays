@@ -221,12 +221,9 @@ class Overlay_Reference_Shape(bpy.types.Gizmo):
 	def test_select(self, context, location):
 		if context.screen.references_overlays.full_lock:
 			return -1
-
-		try:
+		
+		if self.index <= len(context.screen.references_overlays.reference):
 			item = context.screen.references_overlays.reference[self.index]
-			if item.lock:
-				return -1
-
 			if bpy.data.images.get(item.name):
 				image = bpy.data.images[item.name]
 
@@ -273,10 +270,6 @@ class Overlay_Reference_Shape(bpy.types.Gizmo):
 					return -1  # Location is outside the defined area
 			else:
 				return -1
-			
-		except Exception as e:
-			print(f"Error: {e}")
-			return -1
 
 class Overlay_Reference_UI_Control(bpy.types.GizmoGroup):
 	bl_idname = "Overlay_Reference_UI_Control"
@@ -289,6 +282,7 @@ class Overlay_Reference_UI_Control(bpy.types.GizmoGroup):
 		gizmo = self.gizmos.new(Overlay_Reference_Shape.bl_idname)   #GIZMO_GT_button_2d
 		gizmo.target_set_operator("screen.move_reference").index = i
 		gizmo.use_draw_value = True
+		gizmo.use_tooltip = True
 		gizmo.index = i
 		
 	@classmethod
@@ -296,29 +290,19 @@ class Overlay_Reference_UI_Control(bpy.types.GizmoGroup):
 		return (context.screen.references_overlays.overlays_toggle == True and len(context.screen.references_overlays.reference) > 0)
 
 	def draw_prepare(self, context):
-		if len(self.gizmos) == 1 and len(context.screen.references_overlays.reference) == 1:
-			item = context.screen.references_overlays.reference[0]
-			gizmo = self.gizmos[0]
-			gizmo.hide = item.hide
-			region_x = map_range(item.x, 0, context.window.width, 0, context.region.width)
-			region_y = map_range(item.y, 0, context.window.height, 0, context.region.height)
-			gizmo.matrix_basis[0][3] = region_x
-			gizmo.matrix_basis[1][3] = region_y
-		else:
-			for i, gizmo in enumerate(self.gizmos):
-				if i < len(context.screen.references_overlays.reference):
-					item = context.screen.references_overlays.reference[i]
-					if bpy.data.images.get(item.name):
-						self.draw_gizmo(i-1)
-
+		for i, item in enumerate(context.screen.references_overlays.reference):
+			if bpy.data.images.get(item.name):
+				if i + 1 > len(self.gizmos):
+					self.draw_gizmo(i)
+				else:
+					gizmo = self.gizmos[i]
 					gizmo.hide = item.hide
+					gizmo.hide_select = item.lock
 					region_x = map_range(item.x, 0, context.window.width, 0, context.region.width)
 					region_y = map_range(item.y, 0, context.window.height, 0, context.region.height)
 					gizmo.matrix_basis[0][3] = region_x
 					gizmo.matrix_basis[1][3] = region_y
-				else:
-					self.gizmos.remove(gizmo)
-				
+
 	def setup(self, context):
 		for i, item in enumerate(context.screen.references_overlays.reference):
 			if bpy.data.images.get(item.name):

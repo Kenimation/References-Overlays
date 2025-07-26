@@ -216,77 +216,83 @@ class Move_References_OT(bpy.types.Operator):
 		elif event.type == 'TWO':
 			item.depth_set = 'Back'
 
-		if item.lock == False:
+		if event.shift:
+			value = 0.2
+		else:
+			value = 1
 
-			if event.shift:
+		if event.alt:
+			
+			if event.type == 'MOUSEMOVE':
+				item.pivot_x = self.pivot_x + (event.mouse_region_x - self.mouse_region_x)/(context.window.width/2)*-1 * value
+				item.pivot_y = self.pivot_y + (event.mouse_region_y - self.mouse_region_y)/(context.window.width/2)*-1 * value
+
+			if event.type == 'WHEELUPMOUSE':
+				# Handle mouse scroll up events
+				item.zoom = item.zoom + 0.05 * value
 				
-				if event.type == 'MOUSEMOVE':
-					item.pivot_x = self.pivot_x + (event.mouse_region_x - self.x)/(context.window.width/2)*-1
-					item.pivot_y = self.pivot_y + (event.mouse_region_y - self.y)/(context.window.width/2)*-1
+			elif event.type == 'WHEELDOWNMOUSE':
+				# Handle mouse scroll down events
+				item.zoom = item.zoom - 0.05 * value
 
-				if event.type == 'WHEELUPMOUSE':
-					# Handle mouse scroll up events
-					item.zoom = item.zoom + 0.1
-					
-				elif event.type == 'WHEELDOWNMOUSE':
-					# Handle mouse scroll down events
-					item.zoom = item.zoom - 0.1
+			elif event.type == 'S':
+				item.zoom = 0
 
-				elif event.type == 'S':
-					item.zoom = 0
+			elif event.type == 'R':
+				item.pivot_x = 0
+				item.pivot_y = 0
 
-				elif event.type == 'R':
-					item.pivot_x = 0
-					item.pivot_y = 0
+		else:
 
-			else:
+			if event.type == 'MOUSEMOVE':
+				map_range_x = map_range(self.mouse_region_x, 0, context.region.width, 0, context.window.width)
+				map_range_y = map_range(self.mouse_region_y, 0, context.region.height, 0, context.window.height)
 
-				if event.type == 'MOUSEMOVE':
-					region_x = map_range(event.mouse_region_x + ((self.mouse_region_x-self.x)*-1), 0, context.region.width, 0,context.window.width)
-					region_y = map_range(event.mouse_region_y + ((self.mouse_region_y-self.y)*-1), 0, context.region.height, 0,context.window.height)
+				region_x = map_range(event.mouse_region_x, 0, context.region.width, 0, context.window.width) + (map_range_x - self.x)*-1
+				region_y = map_range(event.mouse_region_y, 0, context.region.height, 0, context.window.height) + (map_range_y - self.y)*-1
 
-					if event.ctrl:
-						snap_value = 50  # Grid size for snapping
-						item.x = round(region_x / snap_value) * snap_value
-						item.y = round(region_y / snap_value) * snap_value
-					else:
-						item.x = region_x 
-						item.y = region_y
+				if event.ctrl:
+					snap_value = 50  # Grid size for snapping
+					item.x = round(region_x / snap_value) * snap_value
+					item.y = round(region_y / snap_value) * snap_value
+				else:
+					item.x = region_x 
+					item.y = region_y
 
-				elif event.type == 'WHEELUPMOUSE':
-					# Handle mouse scroll up events
+			elif event.type == 'WHEELUPMOUSE':
+				# Handle mouse scroll up events
+				if event.shift:
+					item.size = item.size * 1.025
+				else:
 					item.size = item.size * 1.1
-					
-				elif event.type == 'WHEELDOWNMOUSE':
-					# Handle mouse scroll down events
+				
+			elif event.type == 'WHEELDOWNMOUSE':
+				# Handle mouse scroll down events
+				if event.shift:
+					item.size = item.size * 0.975
+				else:
 					item.size = item.size * 0.9
 
-				elif event.type == 'S':
-					item.size = 1
+			elif event.type == 'S':
+				item.size = 1
 
-				elif event.type == 'R':
-					item.rotation = 0
+			elif event.type == 'R':
+				item.rotation = 0
 
-				elif event.type == 'C':
-					item.opacity = item.opacity + 0.1
-				elif event.type == 'Z':
-					item.opacity = item.opacity - 0.1
+			elif event.type == 'C':
+				item.opacity = item.opacity + 0.1
+			elif event.type == 'Z':
+				item.opacity = item.opacity - 0.1
 
-				elif event.type == 'E':
-					if event.shift:
-						item.rotation += math.radians(1)  # Small rotation increment when SHIFT is pressed
-					else:
-						item.rotation += math.radians(5)  # Default rotation increment
+			elif event.type == 'E':
+				item.rotation += math.radians(5) * value # Default rotation increment
 
-				elif event.type == 'Q':
-					if event.shift:
-						item.rotation -= math.radians(1)  # Small rotation increment when SHIFT is pressed
-					else:
-						item.rotation -= math.radians(5)  # Default rotation increment
+			elif event.type == 'Q':
+				item.rotation -= math.radians(5) * value # Default rotation increment
 
-				elif event.type == 'X':
-					bpy.ops.screen.remove_references_slot(index = self.index)
-					return {'FINISHED'}
+			elif event.type == 'X':
+				bpy.ops.screen.remove_references_slot(index = self.index)
+				return {'FINISHED'}
 			
 		if event.type == 'LEFTMOUSE':
 			return {'FINISHED'}
@@ -323,8 +329,8 @@ class Move_References_OT(bpy.types.Operator):
 			self.pivot_y = item.pivot_y
 			self.zoom = item.zoom
 
-			self.mouse_region_x = map_range(event.mouse_region_x, 0, context.region.width, 0,context.window.width)
-			self.mouse_region_y = map_range(event.mouse_region_y, 0, context.region.width, 0,context.window.width)
+			self.mouse_region_x = event.mouse_region_x
+			self.mouse_region_y = event.mouse_region_y
 
 			# The arguments we pass the callback.
 			context.window_manager.modal_handler_add(self)
@@ -396,12 +402,12 @@ class Paste_References_OT(bpy.types.Operator):
 	bl_label = "Paste Reference from the clipboard"
 	bl_options = {'REGISTER', 'UNDO'}
 
-	x: bpy.props.IntProperty(options={'HIDDEN'})
-	y: bpy.props.IntProperty(options={'HIDDEN'})
+	x: bpy.props.FloatProperty(options={'HIDDEN'})
+	y: bpy.props.FloatProperty(options={'HIDDEN'})
 
 	def invoke(self, context, event):
-		self.x = event.mouse_region_x
-		self.y = event.mouse_region_y
+		self.x = map_range(event.mouse_region_x, 0, context.region.width, 0,context.window.width)
+		self.y = map_range(event.mouse_region_y, 0, context.region.height, 0,context.window.height)
 		return self.execute(context)
 
 	def execute(self, context):
