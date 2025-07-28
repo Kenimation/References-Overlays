@@ -64,7 +64,7 @@ class Overlay_Reference_Shape(bpy.types.Gizmo):
 			item = context.screen.references_overlays.reference[index]
 			if bpy.data.images.get(item.name) and item.hide == False:
 
-				if item.perspective:
+				if item.orthographic:
 					view = get_view_orientations(context)
 					if not (
 						(item.front and "Front" in view) or
@@ -166,7 +166,7 @@ class Overlay_Reference_Shape(bpy.types.Gizmo):
 						draw_outline(context, min_x-3, min_y, max_x, max_y, rotation_angle, (1, 0.5, 0.5, 1) if item.lock == True else (0.394198,0.569371,1,1), 2.5)
 					elif opacity < 0.2:
 						draw_outline(context, min_x-3, min_y, max_x, max_y, rotation_angle, (1, 0.5, 0.5, 1), 2.5)
-					elif item.perspective and (
+					elif item.orthographic and (
 							(item.front and "Front" in view) or
 							(item.back and "Back" in view) or
 							(item.left and "Left" in view) or
@@ -349,7 +349,7 @@ class References(bpy.types.PropertyGroup):
 							name="Depth"
 									)
 	
-	perspective : bpy.props.BoolProperty(name = 'Perspective',default=False)
+	orthographic : bpy.props.BoolProperty(name = 'Orthographic',default=False)
 	front : bpy.props.BoolProperty(name = 'Front',default=True)
 	back : bpy.props.BoolProperty(name = 'Back',default=False)
 	left : bpy.props.BoolProperty(name = 'Left',default=False)
@@ -571,12 +571,12 @@ class OVERLAY_PT_Reference(bpy.types.Panel):
 				row.prop(item, "flip_y", text="Y", toggle=True)
 
 				col.separator()
-				col.prop(item, "perspective", text="Only Perspective Align")
+				col.prop(item, "orthographic", text="Only Orthographic")
 
 				sub = col.column(align=True)
-				sub.active = item.perspective
+				sub.active = item.orthographic
 
-				row = sub.row(align=True, heading="Perspective")
+				row = sub.row(align=True, heading="Orthographic")
 				row.prop(item, "front", toggle=True)
 				row.prop(item, "left", toggle=True)
 				row.prop(item, "top", toggle=True)
