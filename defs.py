@@ -1,5 +1,25 @@
+import bpy
 import math
 
+def resize_image(context, image):
+	x = image.size[0]
+	y = image.size[1]
+	current_size = x * y
+
+	sizes = []
+	for item in context.screen.references_overlays.reference:
+		image = bpy.data.images.get(item.name)
+		sizes.append(image.size[0] * image.size[1])
+
+	average = sum(sizes) / len(sizes)
+
+	target_size = int(average ** 0.5)  # Resize images to a square of average size
+	scale_factor = (target_size / current_size) ** 0.5
+	new_x = int(x * scale_factor)*15
+	new_y = int(y * scale_factor)*15
+
+	return new_x, new_y
+		
 def map_range(value, in_min, in_max, out_min, out_max):
 	if value < 0:
 		new_value = value*-1
@@ -65,7 +85,6 @@ def get_view_orientation_from_matrix(view_matrix):
 						(r(-math.pi/2), r(-math.pi/2), 0.0) : 'RIGHT'}
 
 	return orientation_dict.get(tuple(map(r, view_rot)), 'USER')
-
 
 def get_view_orientations(context):
 	r3d = context.area.spaces.active.region_3d # fine for right-upper quadview view

@@ -36,7 +36,10 @@ class Load_References_OT(bpy.types.Operator, ImportHelper):
 		
 		for file_elem in self.files:
 			image_path = os.path.join(directory, file_elem.name)
-			image = bpy.data.images.load(image_path)
+			if bpy.data.images.get(file_elem.name):
+				image =  bpy.data.images[file_elem.name]
+			else:
+				image = bpy.data.images.load(image_path)
 			image.use_fake_user = True
 			item = references_overlays.reference.add()
 			item.name = image.name
@@ -316,6 +319,7 @@ class Move_References_OT(bpy.types.Operator):
 	def invoke(self, context, event):
 		if context.area.type == 'VIEW_3D':
 			references_overlays = context.screen.references_overlays
+			references_overlays.reference_index = self.index
 			item = references_overlays.reference[self.index]
 			self.lock = item.lock
 			self.hide = item.hide
