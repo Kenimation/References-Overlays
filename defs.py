@@ -20,23 +20,23 @@ def map_range(value, in_min, in_max, out_min, out_max):
 	return mapped_value
 
 def point_in_area(point, area):
-    x, y = point
-    n = len(area)
-    inside = False
+	x, y = point
+	n = len(area)
+	inside = False
 
-    p1x, p1y = area[0]
-    for i in range(n + 1):
-        p2x, p2y = area[i % n]
-        if y > min(p1y, p2y):
-            if y <= max(p1y, p2y):
-                if x <= max(p1x, p2x):
-                    if p1y != p2y:
-                        xinters = (y - p1y) * (p2x - p1x) / (p2y - p1y) + p1x
-                        if p1x == p2x or x <= xinters:
-                            inside = not inside
-        p1x, p1y = p2x, p2y
+	p1x, p1y = area[0]
+	for i in range(n + 1):
+		p2x, p2y = area[i % n]
+		if y > min(p1y, p2y):
+			if y <= max(p1y, p2y):
+				if x <= max(p1x, p2x):
+					if p1y != p2y:
+						xinters = (y - p1y) * (p2x - p1x) / (p2y - p1y) + p1x
+						if p1x == p2x or x <= xinters:
+							inside = not inside
+		p1x, p1y = p2x, p2y
 
-    return inside
+	return inside
 
 def rotate_vertices(vertices, center_x, center_y, rotation_angle):
 	rotated_vertices = []
@@ -52,3 +52,24 @@ def rotate_vertices(vertices, center_x, center_y, rotation_angle):
 		# Translate the vertex back to its original position
 		rotated_vertices.append((rotated_x + center_x, rotated_y + center_y))
 	return rotated_vertices
+
+def get_view_orientation_from_matrix(view_matrix):
+	r = lambda x: round(x, 2)
+	view_rot = view_matrix.to_euler()
+
+	orientation_dict = {(0.0, 0.0, 0.0) : 'TOP',
+						(r(math.pi), 0.0, 0.0) : 'BOTTOM',
+						(r(-math.pi/2), 0.0, 0.0) : 'FRONT',
+						(r(math.pi/2), 0.0, r(-math.pi)) : 'BACK',
+						(r(-math.pi/2), r(math.pi/2), 0.0) : 'LEFT',
+						(r(-math.pi/2), r(-math.pi/2), 0.0) : 'RIGHT'}
+
+	return orientation_dict.get(tuple(map(r, view_rot)), 'USER')
+
+
+def get_view_orientations(context):
+	r3d = context.area.spaces.active.region_3d # fine for right-upper quadview view
+	view_matrix = r3d.view_matrix
+	view_orientation = get_view_orientation_from_matrix(view_matrix).capitalize()
+	view_orientation += " " + r3d.view_perspective.capitalize()
+	return view_orientation

@@ -64,6 +64,18 @@ class Overlay_Reference_Shape(bpy.types.Gizmo):
 			item = context.screen.references_overlays.reference[index]
 			if bpy.data.images.get(item.name) and item.hide == False:
 
+				if item.perspective:
+					view = get_view_orientations(context)
+					if not (
+						(item.front and "Front" in view) or
+						(item.back and "Back" in view) or
+						(item.left and "Left" in view) or
+						(item.right and "Right" in view) or
+						(item.top and "Top" in view) or
+						(item.bottom and "Bottom" in view)
+					):
+						return
+
 				region_x = map_range(item.x, 0, context.window.width, 0, context.region.width)
 				region_y = map_range(item.y, 0, context.window.height, 0, context.region.height)
 
@@ -154,6 +166,15 @@ class Overlay_Reference_Shape(bpy.types.Gizmo):
 						draw_outline(context, min_x-3, min_y, max_x, max_y, rotation_angle, (1, 0.5, 0.5, 1) if item.lock == True else (0.394198,0.569371,1,1), 2.5)
 					elif opacity < 0.2:
 						draw_outline(context, min_x-3, min_y, max_x, max_y, rotation_angle, (1, 0.5, 0.5, 1), 2.5)
+					elif item.perspective and (
+							(item.front and "Front" in view) or
+							(item.back and "Back" in view) or
+							(item.left and "Left" in view) or
+							(item.right and "Right" in view) or
+							(item.top and "Top" in view) or
+							(item.bottom and "Bottom" in view)
+						):
+						draw_outline(context, min_x-3, min_y, max_x, max_y, rotation_angle, (1, 0.6, 0, 1), 2.5)
 
 				if context.screen.references_overlays.show_name:
 					if item.flip_x:
@@ -167,7 +188,7 @@ class Overlay_Reference_Shape(bpy.types.Gizmo):
 					draw_name(context, item, x, y)
 	
 	@staticmethod
-	def new_custom_shape(self):       
+	def new_custom_shape(self):
 		 
 		vert_out = gpu.types.GPUStageInterfaceInfo("my_interface")
 		vert_out.smooth('VEC2', "uv")
@@ -328,6 +349,14 @@ class References(bpy.types.PropertyGroup):
 							name="Depth"
 									)
 	
+	perspective : bpy.props.BoolProperty(name = 'Perspective',default=False)
+	front : bpy.props.BoolProperty(name = 'Front',default=True)
+	back : bpy.props.BoolProperty(name = 'Back',default=False)
+	left : bpy.props.BoolProperty(name = 'Left',default=False)
+	right : bpy.props.BoolProperty(name = 'Right',default=False)
+	top : bpy.props.BoolProperty(name = 'Top',default=False)
+	bottom : bpy.props.BoolProperty(name = 'Bottom',default=False)
+	
 	crop_left : bpy.props.FloatProperty(name = 'Crop Left',min=0, max = 1, default=0)
 	crop_top : bpy.props.FloatProperty(name = 'Crop Top',min=0, max = 1, default=0)
 	crop_right : bpy.props.FloatProperty(name = 'Crop Right',min=0, max = 1, default=0)
@@ -348,6 +377,7 @@ class Reference_Overlay_Props(bpy.types.PropertyGroup):
 	reference : bpy.props.CollectionProperty(type=References)
 	reference_index : bpy.props.IntProperty(name = "References Overlay", description = "References Overlay")
 	overlays_toggle : bpy.props.BoolProperty(name = "References Overlay Toggle",default=True)
+	show_preview : bpy.props.BoolProperty(name = "Show Preview",default=True)
 	show_name : bpy.props.BoolProperty(name = "Show Tag Name",default=False)
 	tweak_size : bpy.props.BoolProperty(name = "Auto Tweak Size",default=False)
 	full_lock : bpy.props.BoolProperty(name = "Full Lock", default=False, description = "Ignore mouse event")
@@ -412,6 +442,7 @@ class OVERLAY_PT_Reference(bpy.types.Panel):
 	bl_label = "References Overlay"
 	bl_space_type = 'VIEW_3D'
 	bl_region_type = 'HEADER'
+	bl_ui_units_x = 14
 
 	def draw(self, context):
 		references_overlays = context.screen.references_overlays
@@ -422,9 +453,11 @@ class OVERLAY_PT_Reference(bpy.types.Panel):
 		layout.label(text = "References Total "+ str(len(references_overlays.reference)), icon = "IMAGE_REFERENCE")
 
 		col = layout.column()
-		col.prop(references_overlays, "full_lock", text="Full Lock")
-		col.prop(references_overlays, "show_name", text="Show Tag Name")
-		col.prop(references_overlays, "tweak_size", text="Auto Tweak Size")
+		row = col.row(align=True)
+		row.prop(references_overlays, "full_lock", text="Full Lock")
+		row = col.row(align=True)
+		row.prop(references_overlays, "show_name", text="Show Tag Name")
+		row.prop(references_overlays, "tweak_size", text="Auto Tweak Size")
 		
 		col = layout.column()
 
@@ -466,42 +499,55 @@ class OVERLAY_PT_Reference(bpy.types.Panel):
 		down.active_index_path = 'screen.references_overlays.reference_index'
 		down.direction = 'UP'
 
+		col.separator()
+		col.prop(references_overlays, "show_preview", text= "", icon ='HIDE_OFF', toggle = True)
+
 		if len(references_overlays.reference) > 0:
 
 			item = references_overlays.reference[references_overlays.reference_index]
 			image = bpy.data.images.get(item.name)
 			if image:
 
-				if image.preview:
-
+				if image.preview and references_overlays.show_preview:
 					layout.template_icon(image.preview.icon_id, scale=10.0)
+
+				layout.separator()
+				row = layout.row(align=True)
+				xrow = row.row(align=True)
+				xrow.alignment = "LEFT"
+				xrow.label(text= "Tag Name")
+				xrow = row.row(align=True)
+				xrow.prop(item, "tag_name", text= "")
+				xrow.operator("screen.rest_reference", icon = "FILE_REFRESH", text = "").index = references_overlays.reference_index
 
 				layout.separator()
 
 				row = layout.row(align=True)
-				row.prop(item, "tag_name", text= "Name")
+				row.prop(item, "hide", text= "", icon = "HIDE_ON" if item.hide else "HIDE_OFF", emboss = False)
+				row.prop_search(item, "name", bpy.data, "images", text = "")
 				row.prop(item, "lock", text= "", icon = "LOCKED" if item.lock else "UNLOCKED", emboss = False)
 
+				layout.separator()
+
 				row = layout.row(align=True)
-				row.prop_search(item, "name", bpy.data, "images", text = "")
-				row.operator("screen.rest_reference", icon = "FILE_REFRESH", text = "").index = references_overlays.reference_index
-				
+				xrow = row.row(align=True)
+				xrow.alignment = "LEFT"
+				xrow.label(text= "Path")
+				xrow = row.row(align=True)
+				xrow.prop(image, "filepath", text= "")
+
 				layout.separator()
 
 				col = layout.column()
 				col.use_property_split = True
 				col.use_property_decorate = False
 
-				col.prop(image, "filepath", text= "Path")
-
 				if image.source in {'SEQUENCE', 'MOVIE'}:
-					col.separator()
 					col.prop(item, "fps", text="FPS Tempo")
 					col.prop(item, "speed", text="Speed")
 					col.prop(item, "frame_offset", text="Offset")
 					col.prop(item, "use_cyclic", text="Cyclic")
 
-				col.separator()
 				col.prop(item, "size", text="Size")
 
 				col.separator()
@@ -523,6 +569,22 @@ class OVERLAY_PT_Reference(bpy.types.Panel):
 				row = col.row(align=True, heading = "Flip")
 				row.prop(item, "flip_x", text="X", toggle=True)
 				row.prop(item, "flip_y", text="Y", toggle=True)
+
+				col.separator()
+				col.prop(item, "perspective", text="Only Perspective Align")
+
+				sub = col.column(align=True)
+				sub.active = item.perspective
+
+				row = sub.row(align=True, heading="Perspective")
+				row.prop(item, "front", toggle=True)
+				row.prop(item, "left", toggle=True)
+				row.prop(item, "top", toggle=True)
+
+				row = sub.row(align=True)
+				row.prop(item, "back", toggle=True)
+				row.prop(item, "right", toggle=True)
+				row.prop(item, "bottom", toggle=True)
 
 				col.separator()
 				col.prop(item, "opacity", text="Opacity", slider = True)

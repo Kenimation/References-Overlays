@@ -1,11 +1,12 @@
 schema_version = "1.0.0"
 
 id = "references_overlays"
-version = "2.2.2"
+version = "2.2.3"
 name = "References Overlays"
 tagline = "PureRef for Blender. You can add references in the 3D Viewport"
-maintainer = "KEN <kken498@gmail.com>"
+maintainer = "KEN"
 type = "add-on"
+website = "https://extensions.blender.org/add-ons/references-overlays/"
 tags = [
     "3D View", 
     "User Interface"
@@ -14,3 +15,4 @@ blender_version_min = "4.2.0"
 license = ["SPDX:GPL-3.0-or-later",]
 [permissions]
 files = "Import BMP/TIFF/PNG/JPG/JPEG/GIF/MP4/WEBM from/to disk"
+clipboard = "Paste image from the Clipboard"
