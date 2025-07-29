@@ -734,6 +734,11 @@ def add_hotkey():
 		kmi = km.keymap_items.new('screen.toggle_lock_references_overlays', 'T', 'PRESS',ctrl=True)
 		kmi.active = True
 		addon_keymaps.append((km, kmi))
+		
+		km = kc.keymaps.new(name='3D View', space_type='VIEW_3D')
+		kmi = km.keymap_items.new('screen.toggle_grayscale_references_overlays', 'G', 'PRESS', alt=True)
+		kmi.active = True
+		addon_keymaps.append((km, kmi))
 
 		km = kc.keymaps.new(name='3D View', space_type='VIEW_3D')
 		kmi = km.keymap_items.new('screen.paste_reference', 'V', 'PRESS',ctrl=True, alt=True)

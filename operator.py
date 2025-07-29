@@ -201,6 +201,8 @@ class Move_References_OT(bpy.types.Operator):
 	mouse_region_y = None
 	x = None
 	y = None
+	flip_x = None
+	flip_y = None
 	size = None
 	rotation = None
 	pivot_x = None
@@ -244,6 +246,8 @@ class Move_References_OT(bpy.types.Operator):
 			elif event.type == 'R':
 				item.pivot_x = 0
 				item.pivot_y = 0
+				self.mouse_region_x = event.mouse_region_x
+				self.mouse_region_y = event.mouse_region_y
 
 		else:
 
@@ -255,7 +259,10 @@ class Move_References_OT(bpy.types.Operator):
 				region_y = map_range(event.mouse_region_y, 0, context.region.height, 0, context.window.height) + (map_range_y - self.y)*-1
 
 				if event.ctrl:
-					snap_value = 50  # Grid size for snapping
+					if event.shift:
+						snap_value = 25
+					else:
+						snap_value = 50  # Grid size for snapping
 					item.x = round(region_x / snap_value) * snap_value
 					item.y = round(region_y / snap_value) * snap_value
 				else:
@@ -293,14 +300,14 @@ class Move_References_OT(bpy.types.Operator):
 			elif event.type == 'Q':
 				item.rotation -= math.radians(5) * value # Default rotation increment
 
-			elif event.type == 'X':
+			elif event.type in {'X','DEL'}:
 				bpy.ops.screen.remove_references_slot(index = self.index)
 				return {'FINISHED'}
 			
 		if event.type == 'LEFTMOUSE':
 			return {'FINISHED'}
 
-		elif event.type in {'RIGHTMOUSE', 'ESC'}:
+		if event.type in {'RIGHTMOUSE', 'ESC'}:
 			item.x = self.x
 			item.y = self.y 
 			item.pivot_x = self.pivot_x
@@ -329,6 +336,8 @@ class Move_References_OT(bpy.types.Operator):
 			self.rotation = item.rotation 
 			self.opacity = item.opacity
 			self.depth_set = item.depth_set
+			self.flip_x = item.flip_x
+			self.flip_y = item.flip_y		
 			self.pivot_x = item.pivot_x
 			self.pivot_y = item.pivot_y
 			self.zoom = item.zoom
@@ -373,6 +382,7 @@ class Align_References_OT(bpy.types.Operator):
 			item.y = region_height - image.size[1]/2 * item.size/2
 		elif self.align_y == 'CENTER':
 			item.y = region_height/2
+		bpy.ops.wm.redraw_timer(type='DRAW_WIN_SWAP', iterations=1)
 
 		return{'FINISHED'}
 
@@ -392,12 +402,35 @@ class Toggle_Lock_References_OT(bpy.types.Operator):
 	bl_description = "Toggle Lock References Overlays"
 	bl_options = {'REGISTER', 'UNDO'}
 
+	@classmethod
+	def poll(cls, context):
+		return context.screen.references_overlays.overlays_toggle
+
 	def execute(self, context):
 		context.screen.references_overlays.full_lock = not context.screen.references_overlays.full_lock
 		if context.screen.references_overlays.full_lock == True:
 			self.report({'INFO'}, "References Overlays ignore mouse events.")
 		else:
 			self.report({'INFO'}, "References Overlays is unlocked.")
+		return {'FINISHED'}
+
+class Toggle_Grayscale_References_OT(bpy.types.Operator):
+	bl_idname = "screen.toggle_grayscale_references_overlays"
+	bl_label = "Toggle References Overlays Grayscale Mode"
+	bl_description = "Toggle References Overlays Grayscale Mode"
+	bl_options = {'REGISTER', 'UNDO'}
+
+	@classmethod
+	def poll(cls, context):
+		return context.screen.references_overlays.overlays_toggle
+
+	def execute(self, context):
+		context.screen.references_overlays.grayscale = not context.screen.references_overlays.grayscale
+		bpy.ops.wm.redraw_timer(type='DRAW_WIN_SWAP', iterations=1)
+		if context.screen.references_overlays.full_lock == True:
+			self.report({'INFO'}, "References Overlays Grayscale Mode is on.")
+		else:
+			self.report({'INFO'}, "References Overlays Grayscale Mode is off.")
 		return {'FINISHED'}
 
 class Paste_References_OT(bpy.types.Operator):
@@ -475,6 +508,7 @@ classes = (
 	 Align_References_OT,
 	 Toggle_References_OT,
 	 Toggle_Lock_References_OT,
+	 Toggle_Grayscale_References_OT,
 	 Paste_References_OT,
 	 InstallPillow_OT,
 )
