@@ -16,6 +16,8 @@ You can add references in the 3D Viewport Overlays
 * Set the references depth.
 * Multiple media support (Video, GIF, etc).
 * Cropping the references.
+* Support Grayscale mode.
+* Support orthographic alignment display
 * Paste the image from the clipboard.
 
 # Location
@@ -26,6 +28,7 @@ You can add references in the 3D Viewport Overlays
 # Hotkey
 * Toggle References Overlays - 'Ctrl + F1'
 * Toggle References Overlays Locked - 'Ctrl + T'
+* Toggle References Overlays Grayscale mode - 'Alt + G'
 * Paste from the clipboard - 'Ctrl + Alt + V'
 
 ## References Moving Hotkey
@@ -43,7 +46,7 @@ You can add references in the 3D Viewport Overlays
 * Reduce Opacity - 'Z'
 * Reset Rotation - 'R'
 * Reset Size - 'S'
-* Remove - 'X'
+* Remove - 'X' or 'DEL'
 * Press 'Ctrl' for snap mode during moving
 * Press "Shift" for Precision Mode
 
