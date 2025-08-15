@@ -26,7 +26,7 @@ You can add references in the 3D Viewport Overlays
 ![Image](https://public-files.gumroad.com/o292gfv4nyquj7m6lwkfn1qmrwbu)
 
 # Hotkey
-* Toggle References Overlays - 'Ctrl + F1'
+* Toggle References Overlays - 'Alt + Z'
 * Toggle References Overlays Locked - 'Ctrl + T'
 * Toggle References Overlays Grayscale mode - 'Alt + G'
 * Paste from the clipboard - 'Ctrl + Alt + V'
