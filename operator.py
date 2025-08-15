@@ -394,6 +394,7 @@ class Toggle_References_OT(bpy.types.Operator):
 
 	def execute(self, context):
 		context.screen.references_overlays.overlays_toggle = not context.screen.references_overlays.overlays_toggle
+		context.area.tag_redraw()
 		return {'FINISHED'}
 
 class Toggle_Lock_References_OT(bpy.types.Operator):

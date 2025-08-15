@@ -726,12 +726,12 @@ def add_hotkey():
 		################################################
 
 		km = kc.keymaps.new(name='3D View', space_type='VIEW_3D')
-		kmi = km.keymap_items.new('screen.toggle_references_overlays', 'F1', 'PRESS',ctrl=True)
+		kmi = km.keymap_items.new('screen.toggle_references_overlays', 'Z', 'PRESS', alt=True)
 		kmi.active = True
 		addon_keymaps.append((km, kmi))
 
 		km = kc.keymaps.new(name='3D View', space_type='VIEW_3D')
-		kmi = km.keymap_items.new('screen.toggle_lock_references_overlays', 'T', 'PRESS',ctrl=True)
+		kmi = km.keymap_items.new('screen.toggle_lock_references_overlays', 'T', 'PRESS', ctrl=True)
 		kmi.active = True
 		addon_keymaps.append((km, kmi))
 		
