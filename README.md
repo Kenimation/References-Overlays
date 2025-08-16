@@ -1,6 +1,5 @@
 ![Image](https://imgur.com/Qlv8Cox.png)
-# Blender Extensions
-https://extensions.blender.org/add-ons/references-overlays/
+# [Blender Extensions](https://extensions.blender.org/add-ons/references-overlays/)
 
 # PureRef for Blender!!! 
 You can add references in the 3D Viewport Overlays
