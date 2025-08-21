@@ -252,11 +252,16 @@ class Move_References_OT(bpy.types.Operator):
 		else:
 
 			if event.type == 'MOUSEMOVE':
-				map_range_x = map_range(self.mouse_region_x, 0, context.region.width, 0, context.window.width)
-				map_range_y = map_range(self.mouse_region_y, 0, context.region.height, 0, context.window.height)
+				if references_overlays.fit_view_distance:
+					view_distance = context.area.spaces.active.region_3d.view_distance/15
+				else:
+					view_distance = 1
 
-				region_x = map_range(event.mouse_region_x, 0, context.region.width, 0, context.window.width) + (map_range_x - self.x)*-1
-				region_y = map_range(event.mouse_region_y, 0, context.region.height, 0, context.window.height) + (map_range_y - self.y)*-1
+				map_range_x = map_range(self.mouse_region_x, 0, context.region.width, 0, context.window.width*view_distance)
+				map_range_y = map_range(self.mouse_region_y, 0, context.region.height, 0, context.window.height*view_distance)
+
+				region_x = map_range(event.mouse_region_x, 0, context.region.width, 0, context.window.width*view_distance) + (map_range_x - self.x)*-1
+				region_y = map_range(event.mouse_region_y, 0, context.region.height, 0, context.window.height*view_distance) + (map_range_y - self.y)*-1
 
 				if event.ctrl:
 					if event.shift:

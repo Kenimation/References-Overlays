@@ -41,8 +41,11 @@ def draw_outline(context, min_x, min_y, max_x, max_y, rotation_angle, color, thi
 		(min_x+2, max_y),
 		(min_x+2, min_y)
 	]
-	
+
 	rotated_vertices = rotate_vertices(vertices, center_x, center_y, rotation_angle)
+
+	if context.screen.references_overlays.fit_view_distance:
+		rotated_vertices = scale_vertices(rotated_vertices, context.region.width/2, context.region.height/2, context.area.spaces.active.region_3d.view_distance/15)
 
 	shader = gpu.shader.from_builtin("UNIFORM_COLOR")
 	gpu.state.blend_set("ALPHA")
@@ -145,10 +148,15 @@ class Overlay_Reference_Shape(bpy.types.Gizmo):
 
 		pos = ((min_x, min_y), (max_x, min_y), (max_x, max_y), (min_x, max_y))
 
+		pos = rotate_vertices(pos, center_x, center_y, rotation_angle)
+
+		if references_overlays.fit_view_distance:
+			pos = scale_vertices(pos, context.region.width/2, context.region.height/2, context.area.spaces.active.region_3d.view_distance/15)
+
 		batch = batch_for_shader(
 			shader, 'TRI_FAN',
 			{
-				"pos": rotate_vertices(pos, center_x, center_y, rotation_angle),
+				"pos": pos,
 				"texCoord": (
 							((0+left/2+pivot_x)-zoom*(1-left), (0+bottom/2+pivot_y)-zoom*(1-bottom)), 
 							((1-right/2+pivot_x)+zoom*(1-right), (0+bottom/2+pivot_y)-zoom*(1-bottom)),
@@ -306,9 +314,12 @@ class Overlay_Reference_Shape(bpy.types.Gizmo):
 		center_x = (min_x + max_x) / 2
 		center_y = (min_y + max_y) / 2
 		rotation_angle = item.rotation * -1
-		pos = ((min_x, min_y), (max_x, min_y), (max_x, max_y), (min_x, max_y))
+		area = ((min_x, min_y), (max_x, min_y), (max_x, max_y), (min_x, max_y))
+
+		area = rotate_vertices(area, center_x, center_y, rotation_angle)
 		
-		area = rotate_vertices(pos, center_x, center_y, rotation_angle)
+		if context.screen.references_overlays.fit_view_distance:
+			area = scale_vertices(area, context.region.width/2, context.region.height/2, context.area.spaces.active.region_3d.view_distance/15)
 
 		if point_in_area(location, area):
 			return 0  # Location matches the gizmo's position within the area
@@ -408,6 +419,7 @@ class Reference_Overlay_Props(bpy.types.PropertyGroup):
 	show_name : bpy.props.BoolProperty(name = "Show Tag Name",default=False, description = "Show References Tag Name")
 	resize_image : bpy.props.BoolProperty(name = "Auto Reize Image",default=False, description = "Resizes the image based on the average size.")
 	tweak_size : bpy.props.BoolProperty(name = "Auto Tweak Size",default=False, description = "Auto-tweak the size of the reference with the region.")
+	fit_view_distance : bpy.props.BoolProperty(name = "Fit View Distance",default=False, description = "Fit the image size to the 3D view distance")
 	full_lock : bpy.props.BoolProperty(name = "Full Lock", default=False, description = "Ignore mouse event")
 
 class REFERENCES_UL_Overlays(bpy.types.UIList):
@@ -489,6 +501,7 @@ class OVERLAY_PT_Reference(bpy.types.Panel):
 		col = row.column(align=True)
 		col.prop(references_overlays, "resize_image", text="Resize Image")
 		col.prop(references_overlays, "tweak_size", text="Auto Tweak Size")
+		col.prop(references_overlays, "fit_view_distance", text="Fit View Distance")
 
 		row = col.row(align=True)
 		

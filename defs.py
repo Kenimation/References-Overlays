@@ -73,6 +73,17 @@ def rotate_vertices(vertices, center_x, center_y, rotation_angle):
 		rotated_vertices.append((rotated_x + center_x, rotated_y + center_y))
 	return rotated_vertices
 
+def scale_vertices(vertices, center_x, center_y, scale):
+    scaled_vertices = []
+    for vertex in vertices:
+        x = vertex[0]
+        y = vertex[1]
+        # Scale the vertex around the center point
+        scaled_x = center_x + (x - center_x)/scale
+        scaled_y = center_y + (y - center_y)/scale
+        scaled_vertices.append((scaled_x, scaled_y))
+    return scaled_vertices
+
 def get_view_orientation_from_matrix(view_matrix):
 	r = lambda x: round(x, 2)
 	view_rot = view_matrix.to_euler()
