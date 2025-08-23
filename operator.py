@@ -357,6 +357,89 @@ class Move_References_OT(bpy.types.Operator):
 			self.report({'WARNING'}, "View3D not found, cannot run operator")
 			return {'CANCELLED'}
 
+class Global_Move_References_OT(bpy.types.Operator):
+	bl_idname = "screen.gobal_move_reference"
+	bl_label = "Global Move References"
+	bl_description = "Move References"
+	bl_options = {'REGISTER', 'UNDO'}
+
+	mouse_region_x = None
+	mouse_region_y = None
+	x = None
+	y = None
+	size = None
+	pivot_x = None
+	pivot_y = None
+
+	def modal(self, context, event):
+		context.area.tag_redraw()
+		item = context.screen.references_overlays
+		
+		if event.type == 'MOUSEMOVE':
+			region_x = self.x + event.mouse_region_x - self.mouse_region_x
+			region_y = self.y + event.mouse_region_y - self.mouse_region_y
+
+			if event.shift:
+				if event.shift:
+					snap_value = 25
+				else:
+					snap_value = 50  # Grid size for snapping
+				item.x = round(region_x / snap_value) * snap_value
+				item.y = round(region_y / snap_value) * snap_value
+			else:
+				item.x = region_x 
+				item.y = region_y
+
+		elif event.type == 'WHEELUPMOUSE':
+			# Handle mouse scroll up events
+			if event.shift:
+				item.size = item.size * 1.025
+			else:
+				item.size = item.size * 1.1
+			
+		elif event.type == 'WHEELDOWNMOUSE':
+			# Handle mouse scroll down events
+			if event.shift:
+				item.size = item.size * 0.975
+			else:
+				item.size = item.size * 0.9
+
+		elif event.type == 'S':
+			item.size = 1
+
+		elif event.type == 'R':
+			item.x = 0
+			item.y = 0
+			
+		if event.type == 'LEFTMOUSE':
+			return {'FINISHED'}
+
+		if event.type in {'RIGHTMOUSE', 'ESC'}:
+			item.x = self.x
+			item.y = self.y 
+			item.pivot_x = self.pivot_x
+			item.pivot_y = self.pivot_y
+			item.size = self.size
+			return {'CANCELLED'}
+
+		return {'RUNNING_MODAL'}
+	
+	def invoke(self, context, event):
+		if context.area.type == 'VIEW_3D':
+			item = context.screen.references_overlays
+			self.x = item.x
+			self.y = item.y
+			self.mouse_region_x = event.mouse_region_x
+			self.mouse_region_y = event.mouse_region_y
+			self.size = item.size	
+
+			# The arguments we pass the callback.
+			context.window_manager.modal_handler_add(self)
+			return {'RUNNING_MODAL'}
+		else:
+			self.report({'WARNING'}, "View3D not found, cannot run operator")
+			return {'CANCELLED'}
+
 class Align_References_OT(bpy.types.Operator):
 	bl_idname = "screen.align_reference"
 	bl_label = "Align References"
@@ -511,6 +594,7 @@ classes = (
  	 Clear_References_OT,
 	 Copy_References_From_OT,
 	 Move_References_OT,
+	 Global_Move_References_OT,
 	 Align_References_OT,
 	 Toggle_References_OT,
 	 Toggle_Lock_References_OT,

@@ -29,23 +29,29 @@ def draw_name(context, item, x, y):
 	blf.disable(font_id, blf.SHADOW)
 
 def draw_outline(context, min_x, min_y, max_x, max_y, rotation_angle, color, thickness):
+	references_overlays = context.screen.references_overlays
 	# Calculate the center of the rectangle
 	center_x = (min_x + max_x) / 2
 	center_y = (min_y + max_y) / 2
 	
+	offset_x = references_overlays.x
+	offset_y = references_overlays.y
+
 	# Define the vertices of the rectangle
 	vertices = [
-		(min_x+2, min_y),
-		(max_x, min_y),
-		(max_x, max_y),
-		(min_x+2, max_y),
-		(min_x+2, min_y)
+		(min_x+2+offset_x, min_y+offset_y),
+		(max_x+offset_x, min_y+offset_y),
+		(max_x+offset_x, max_y+offset_y),
+		(min_x+2+offset_x, max_y+offset_y),
+		(min_x+2+offset_x, min_y+offset_y)
 	]
 
 	rotated_vertices = rotate_vertices(vertices, center_x, center_y, rotation_angle)
 
-	if context.screen.references_overlays.fit_view_distance:
-		rotated_vertices = scale_vertices(rotated_vertices, context.region.width/2, context.region.height/2, context.area.spaces.active.region_3d.view_distance/15)
+	if references_overlays.fit_view_distance:
+		rotated_vertices = scale_vertices(rotated_vertices, context.region.width/2, context.region.height/2, 1/(context.area.spaces.active.region_3d.view_distance/15))
+
+	rotated_vertices  = scale_vertices(rotated_vertices, context.region.width/2, context.region.height/2, references_overlays.size)
 
 	shader = gpu.shader.from_builtin("UNIFORM_COLOR")
 	gpu.state.blend_set("ALPHA")
@@ -146,12 +152,20 @@ class Overlay_Reference_Shape(bpy.types.Gizmo):
 		rotation_angle = item.rotation * -1
 		opacity = item.opacity
 
-		pos = ((min_x, min_y), (max_x, min_y), (max_x, max_y), (min_x, max_y))
+		offset_x = references_overlays.x
+		offset_y = references_overlays.y
+
+		pos = ((min_x+offset_x, min_y+offset_y),
+				(max_x+offset_x, min_y+offset_y),
+				(max_x+offset_x, max_y+offset_y),
+				(min_x+offset_x, max_y+offset_y))
 
 		pos = rotate_vertices(pos, center_x, center_y, rotation_angle)
 
 		if references_overlays.fit_view_distance:
-			pos = scale_vertices(pos, context.region.width/2, context.region.height/2, context.area.spaces.active.region_3d.view_distance/15)
+			pos = scale_vertices(pos, context.region.width/2, context.region.height/2, 1/(context.area.spaces.active.region_3d.view_distance/15))
+
+		pos = scale_vertices(pos, context.region.width/2, context.region.height/2, references_overlays.size)
 
 		batch = batch_for_shader(
 			shader, 'TRI_FAN',
@@ -266,22 +280,23 @@ class Overlay_Reference_Shape(bpy.types.Gizmo):
 		self.custom_shape = self.new_custom_shape(self)
 
 	def test_select(self, context, location):
-		if context.screen.references_overlays.full_lock or self.index >= len(context.screen.references_overlays.reference):
+		references_overlays = context.screen.references_overlays
+		if references_overlays.full_lock or self.index >= len(references_overlays.reference):
 			return -1
 		
-		item = context.screen.references_overlays.reference[self.index]
+		item = references_overlays.reference[self.index]
 		if not bpy.data.images.get(item.name):
 			return -1
 		
 		image = bpy.data.images[item.name]
 
-		if context.screen.references_overlays.resize_image:
+		if references_overlays.resize_image:
 			img_x, img_y = resize_image(context, image)
 		else:
 			img_x = image.size[0]
 			img_y = image.size[1]
 
-		if context.screen.references_overlays.tweak_size:
+		if references_overlays.tweak_size:
 			size = item.size/((context.window.width+context.region.width)/(context.window.height+context.region.height))
 			region_size = map_range(size, 0, context.window.width/2, 0, context.region.width) * map_range(size, 0, context.window.height/2, 0, context.region.height)
 		else:
@@ -311,15 +326,23 @@ class Overlay_Reference_Shape(bpy.types.Gizmo):
 			min_y = region_y-img_y/2 * region_size/2*(1-bottom)
 			max_y = region_y+img_y/2 * region_size/2*(1-top)
 
+		offset_x = references_overlays.x
+		offset_y = references_overlays.y
+
 		center_x = (min_x + max_x) / 2
 		center_y = (min_y + max_y) / 2
 		rotation_angle = item.rotation * -1
-		area = ((min_x, min_y), (max_x, min_y), (max_x, max_y), (min_x, max_y))
+		area = ((min_x+offset_x, min_y+offset_y),
+				(max_x+offset_x, min_y+offset_y),
+				(max_x+offset_x, max_y+offset_y),
+				(min_x+offset_x, max_y+offset_y))
 
 		area = rotate_vertices(area, center_x, center_y, rotation_angle)
 		
-		if context.screen.references_overlays.fit_view_distance:
-			area = scale_vertices(area, context.region.width/2, context.region.height/2, context.area.spaces.active.region_3d.view_distance/15)
+		if references_overlays.fit_view_distance:
+			area = scale_vertices(area, context.region.width/2, context.region.height/2, 1/(context.area.spaces.active.region_3d.view_distance/15))
+
+		area = scale_vertices(area, context.region.width/2, context.region.height/2, references_overlays.size)
 
 		if point_in_area(location, area):
 			return 0  # Location matches the gizmo's position within the area
@@ -345,7 +368,8 @@ class Overlay_Reference_UI_Control(bpy.types.GizmoGroup):
 		return (context.screen.references_overlays.overlays_toggle == True and len(context.screen.references_overlays.reference) > 0)
 
 	def draw_prepare(self, context):
-		for i, item in enumerate(context.screen.references_overlays.reference):
+		references_overlays = context.screen.references_overlays
+		for i, item in enumerate(references_overlays.reference):
 			if bpy.data.images.get(item.name):
 				if i + 1 > len(self.gizmos):
 					self.draw_gizmo(i)
@@ -413,6 +437,11 @@ class References(bpy.types.PropertyGroup):
 class Reference_Overlay_Props(bpy.types.PropertyGroup):
 	reference : bpy.props.CollectionProperty(type=References, description = "References")
 	reference_index : bpy.props.IntProperty(name = "References Index", description = "References Index")
+	
+	x : bpy.props.FloatProperty(name = 'References Global X', default=0, description = "References Global X")
+	y : bpy.props.FloatProperty(name = 'References Global Y', default=0, description = "References Global Y")
+	size : bpy.props.FloatProperty(name = 'References Global Size', default=1, min=0.01, description = "References Global Size")
+
 	overlays_toggle : bpy.props.BoolProperty(name = "References Overlay Toggle",default=True, description = "References Overlay Toggle")
 	grayscale : bpy.props.BoolProperty(name = "Grayscale Mode",default=False, description = "Grayscale Mode")
 	show_preview : bpy.props.BoolProperty(name = "Show Preview",default=True, description = "Show References Preview on menu.")
@@ -503,8 +532,6 @@ class OVERLAY_PT_Reference(bpy.types.Panel):
 		col.prop(references_overlays, "tweak_size", text="Auto Tweak Size")
 		col.prop(references_overlays, "fit_view_distance", text="Fit View Distance")
 
-		row = col.row(align=True)
-		
 		col = layout.column()
 
 		col.label(text="Copying references from other screen.")
@@ -755,6 +782,11 @@ def add_hotkey():
 
 		km = kc.keymaps.new(name='3D View', space_type='VIEW_3D')
 		kmi = km.keymap_items.new('screen.paste_reference', 'V', 'PRESS',ctrl=True, alt=True)
+		kmi.active = True
+		addon_keymaps.append((km, kmi))
+
+		km = kc.keymaps.new(name='3D View', space_type='VIEW_3D')
+		kmi = km.keymap_items.new('screen.gobal_move_reference', 'W', 'PRESS', ctrl=True)
 		kmi.active = True
 		addon_keymaps.append((km, kmi))
 
